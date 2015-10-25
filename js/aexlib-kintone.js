@@ -129,7 +129,7 @@ var aexlib = aexlib || {};
      * updateParams.url = '/k/v1/records'
      * updateParams.request = 'PUT'
      * updateParams.toParamsHandler = function(appId, records, validateRevisions) {}
-     * updateParams.toResultHandler = function(appId, resp) {}
+     * updateParams.toResultHandler = function(records, resp, cumulativeResult) {}
      */
     k._recursiveUpdate = function(updateParams, records, opt_validateRevisions, opt_result) {
         var validateRevisions = k.Record._isValidationEnabled(opt_validateRevisions);
@@ -145,10 +145,6 @@ var aexlib = aexlib || {};
         }
 
         maxBatchSize = records.length > k._MAX_UPDATE_LIMIT ? k._MAX_UPDATE_LIMIT : records.length;
-
-       // if (k._isDefined(rid) && this.isUpdated()) {
-       // } else if (k._isUndefined(rid)) {
-       // }
 
         for (i = 0;i < maxBatchSize;i++) {
             record = records[i];
@@ -166,7 +162,7 @@ var aexlib = aexlib || {};
         params = updateParams.toParamsHandler(appId, records, validateRevisions);
 
         return k._requestFunc()(updateParams.url, updateParams.request, params).then(function(resp) {
-            var result = updateParams.toResultHandler(resp, opt_result);
+            var result = updateParams.toResultHandler(records, resp, opt_result);
             return remains ? k._recursiveUpdate(updateParams, remains, validateRevisions, result) : result;
         }, function(errResp) {
             return k._reject(k._isDefined(errResp.message) ? errResp.message : k._UNKNOWN_ERROR);
@@ -586,7 +582,24 @@ var aexlib = aexlib || {};
             return { app: appId, records:updatedRecords };
         };
 
-        var toResultHandler = function(resp, cumulativeResult) {
+        var toResultHandler = function(records, resp, cumulativeResult) {
+            var i, m, r;
+            for (i = 0;i < resp.records.length;i++) {
+                r = resp.records[i];
+                if (r.id == records[i].recordId()) {
+                    records[i].revision(r.revision);
+                } else {
+                    // Note: I'm not sure we need this type of result.
+                    // This call is used when the response is disorder of params.record.
+                    for (m = 0;m < records.length;m++) {
+                        if (r.id == records[m].recordId()) {
+                            records[m].revision(r.revision);
+                            break;
+                        }
+                    }
+                }
+            }
+
             var result = k._isDefined(cumulativeResult) ? cumulativeResult : {records:[]};
             result.records = result.records.concat(resp.records);
             return result;
@@ -608,7 +621,12 @@ var aexlib = aexlib || {};
             return { app: appId, records:updatedRecords };
         };
 
-        var toResultHandler = function(resp, opt_result) {
+        var toResultHandler = function(records, resp, opt_result) {
+            for (var i = 0;i < resp.ids.length;i++) {
+                records[i].recordId(resp.ids[i]);
+                records[i].revision(resp.revisions[i]);
+            }
+
             return k._isDefined(opt_result) ?
                 {ids:opt_result.ids.concat(resp.ids), revisions:opt_result.revisions.concat(resp.revisions)} :
                 {ids:resp.ids, revisions:resp.revisions};
@@ -638,7 +656,7 @@ var aexlib = aexlib || {};
                 {app:appId, ids:recordIds};
         };
 
-        var toResultHandler = function(resp, opt_result) { return {}; };
+        var toResultHandler = function(records, resp, opt_result) { return {}; };
 
         return {
             url: '/k/v1/records',

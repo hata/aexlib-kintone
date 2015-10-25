@@ -1116,6 +1116,10 @@ describe("aexlib.kintone tests", function() {
       a.newRecord({foo:{value:'bar'}, '$id':{value:'2'}, '$revision':{value:'4'} }),
       a.newRecord({foo:{value:'hoge'},'$id':{value:'3'}, '$revision':{value:'5'} })
     ];
+    var records2 = [
+      a.newRecord({foo:{value:'bar'}, '$id':{value:'9'}, '$revision':{value:'10'} }),
+      a.newRecord({foo:{value:'hoge'},'$id':{value:'8'}, '$revision':{value:'9'} })
+    ];
     records = records.map(function(record) {
         record.val('foo', 'piyo');
         return record;
@@ -1135,9 +1139,9 @@ describe("aexlib.kintone tests", function() {
     expect(params.app).toEqual('1');
     expect(params.records).toEqual(paramRecords);
 
-    resp = updateParams.toResultHandler({records:resultRecords});
+    resp = updateParams.toResultHandler(records, {records:resultRecords});
     expect(resp.records).toEqual(resultRecords);
-    resp = updateParams.toResultHandler(resultRecords2, resp);
+    resp = updateParams.toResultHandler(records2, {records:resultRecords2}, resp);
 
     params = updateParams.toParamsHandler('1', records);
     expect(params.app).toEqual('1');
@@ -1162,10 +1166,10 @@ describe("aexlib.kintone tests", function() {
     params = updateParams.toParamsHandler('1', records, true);
     expect(params.app).toEqual('1');
     expect(params.records).toEqual(paramRecords);
-    resp = updateParams.toResultHandler({ids:['1','2'], revisions:['3','4']});
+    resp = updateParams.toResultHandler(records, {ids:['1','2'], revisions:['3','4']});
     expect(resp.ids).toEqual(['1','2']);
     expect(resp.revisions).toEqual(['3','4']);
-    resp = updateParams.toResultHandler({ids:['5','6'], revisions:['7','8']}, resp);
+    resp = updateParams.toResultHandler(records, {ids:['5','6'], revisions:['7','8']}, resp);
     expect(resp.ids).toEqual(['1','2','5','6']);
     expect(resp.revisions).toEqual(['3','4','7','8']);
   });
@@ -1185,9 +1189,9 @@ describe("aexlib.kintone tests", function() {
     expect(params.app).toEqual('1');
     expect(params.ids).toEqual([1, 2]);
     expect(params.revisions).toEqual([3, 4]);
-    resp = updateParams.toResultHandler({});
+    resp = updateParams.toResultHandler(records, {});
     expect(resp).toEqual({});
-    resp = updateParams.toResultHandler({}, resp);
+    resp = updateParams.toResultHandler(records, {}, resp);
     expect(resp).toEqual({});
   });
 
@@ -1207,6 +1211,10 @@ describe("aexlib.kintone tests", function() {
 
     k.Record.createAll(records).then(function(resp) {
       expect(resp).toEqual({ids:['1','2'], revisions:['3','4']});
+      expect(records[0].recordId()).toEqual(1);
+      expect(records[1].recordId()).toEqual(2);
+      expect(records[0].revision()).toEqual(3);
+      expect(records[1].revision()).toEqual(4);
       done();
     });
   });
@@ -1233,6 +1241,8 @@ describe("aexlib.kintone tests", function() {
 
     k.Record.updateAll(records).then(function(resp) {
       expect(resp).toEqual({records:respRecords});
+      expect(records[0].revision()).toEqual(5);
+      expect(records[1].revision()).toEqual(6);
       done();
     });
   });
