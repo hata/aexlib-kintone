@@ -15,9 +15,9 @@ module.exports = function(config) {
 
     // list of files / patterns to load in the browser
     files: [
-      'test/mock-kintone.js',
+      'spec/mock-kintone.js',
       'js/*.js',
-      'test/*.js'
+      'spec/*.js'
     ],
 
 
