@@ -48,9 +48,31 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone.App.getApp(appId) returns the argument's App instance.", function() {
-    expect(k.App.getApp('appId').appId).toEqual('appId');
+    expect(a.appId).toEqual('1');
+    expect(a.app).toBeUndefined();
+    expect(a.fields).toBeUndefined();
+    expect(a.lang).toEqual('default');
+    expect(a._labelAccess).toEqual(false);
   });
 
+  it("aexlib.kintone.App.getApp(appId) can set fields and additional options.", function() {
+    var app = k.App.getApp('1', {'foo':{label:'bar'}}, {lang:'en', labelAccess:true});
+    expect(app.appId).toEqual('1');
+    expect(app.app).toBeUndefined();
+    expect(app.fields).toEqual({'foo':{label:'bar'}});
+    expect(app.lang).toEqual('en');
+    expect(app._labelAccess).toEqual(true);
+    expect(app.labelAccess()).toEqual(true);
+  });
+
+  it("aexlib.kintone.App.getApp(appId) can set fields and additional options.", function() {
+    var app = k.App.getApp('1', null, {});
+    expect(app.appId).toEqual('1');
+    expect(app.app).toBeUndefined();
+    expect(app.fields).toEqual(null);
+    expect(app.lang).toEqual('default');
+    expect(app._labelAccess).toEqual(false);
+  });
 
   it("aexlib.kintone.App.fetchApps", function(done) {
     var result = {
@@ -345,6 +367,12 @@ describe("aexlib.kintone tests", function() {
     expect(a.newRecord({foo:{value:'bar'}}).val('foo')).toEqual('bar');
   });
 
+  it("aexlib.kintone.App.labelAccess can set a new labelAccess flag value.", function() {
+    expect(a.labelAccess()).toEqual(false);
+    a.labelAccess(true);
+    expect(a.labelAccess()).toEqual(true);
+  });
+
   it("aexlib.kintone.Query.first fetch a record and then return Promise.", function(done) {
     var app = k.App.getApp('1');
 
@@ -468,6 +496,18 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.Query.select can use label when option is set.", function() {
+    var app = k.App.getApp('1', {foo:{label:'bar'}}, {labelAccess:true});
+    var q = app.select('bar');
+    expect(q._fields).toEqual(['foo']);
+  });
+
+  it("aexlib.kintone.Query.select can use label when option is set.", function() {
+    var app = k.App.getApp('1', {foo:{label:'bar'}, bar:{label:'hoge'}}, {labelAccess:true});
+    var q = app.select(['bar', 'hoge']);
+    expect(q._fields).toEqual(['foo', 'bar']);
+  });
+
   it("aexlib.kintone.Query.where can set string.", function() {
     expect(q.where('code = "foo"')._qParams.pop()).toEqual('code = "foo"');
   });
@@ -497,8 +537,22 @@ describe("aexlib.kintone tests", function() {
     expect(q.orderAsc("foo")._buildQuery()).toEqual('order by foo asc');
   });
 
+  it("aexlib.kintone.Query.orderAsc can set order by foo asc when labelAccess is true.", function() {
+    a = k.App.getApp('1', {foo:{label:'bar'}});
+    a.labelAccess(true);
+    q = a.select();
+    expect(q.orderAsc("bar")._buildQuery()).toEqual('order by foo asc');
+  });
+
   it("aexlib.kintone.Query.orderDesc can set order by foo desc.", function() {
     expect(q.orderDesc("foo")._buildQuery()).toEqual('order by foo desc');
+  });
+
+  it("aexlib.kintone.Query.orderDesc can set order by foo desc when labelAccess is true.", function() {
+    a = k.App.getApp('1', {foo:{label:'bar'}});
+    a.labelAccess(true);
+    q = a.select();
+    expect(q.orderDesc("bar")._buildQuery()).toEqual('order by foo desc');
   });
 
   it("aexlib.kintone.Query.orderDesc can set order by foo desc.", function() {
@@ -540,55 +594,116 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone.Query._toOperatorQuery set query params and then return Query instance.", function() {
-    expect(new k.Query.Condition()._addOperatorQuery('code', 'op', '"foo')._qParams.pop()).toEqual('code op "\\"foo"');
+    expect(new k.Query.Condition(q)._addOperatorQuery('code', 'op', '"foo')._qParams.pop()).toEqual('code op "\\"foo"');
+  });
+
+  it("aexlib.kintone.Query._toOperatorQuery set query params from label.", function() {
+    a = k.App.getApp('1', {foo:{label:'bar'}});
+    a.labelAccess(true);
+    expect(new k.Query.Condition(a.select())._addOperatorQuery('bar', 'op', 'hoge')._qParams.pop()).toEqual('foo op "hoge"');
   });
 
   it("aexlib.kintone.Query.equal set operator = to query.", function() {
-    expect(q.equal('code', 'foo')._qParams.pop()).toEqual('code = "foo"');
+    var c = q.equal('code', 'foo');
+    expect(c._qParams.pop()).toEqual('code = "foo"');
+    expect(c._query).toEqual(q);
+  });
+
+  it("aexlib.kintone.Query.equal set operator = to query with a record for labelAccess == true.", function() {
+    var a2 = k.App.getApp('1', {foo:{label:'bar'}}, {labelAccess:true});
+    var r = a2.newRecord({foo:{value:'hoge'}});
+    var c = q.equal('foo', r);
+    expect(c._qParams.pop()).toEqual('foo = "hoge"');
+  });
+
+  it("aexlib.kintone.Query.equal set operator = to query with a record for labelAccess == false.", function() {
+    var a2 = k.App.getApp('1', {foo:{label:'bar'}}, {labelAccess:true});
+    var q2 = a2.select();
+    var r = a.newRecord({foo:{value:'hoge'}});
+    var c = q2.equal('bar', r);
+    expect(c._qParams.pop()).toEqual('foo = "hoge"');
   });
 
   it("aexlib.kintone.Query.notEqual set operator != to query.", function() {
-    expect(q.notEqual('code', 'foo')._qParams.pop()).toEqual('code != "foo"');
+    var c = q.notEqual('code', 'foo');
+    expect(c._qParams.pop()).toEqual('code != "foo"');
+    expect(c._query).toEqual(q);
   });
 
   it("aexlib.kintone.Query.greaterThan set operator > to query.", function() {
-    expect(q.greaterThan('code', 'foo')._qParams.pop()).toEqual('code > "foo"');
+    var c = q.greaterThan('code', 'foo');
+    expect(c._qParams.pop()).toEqual('code > "foo"');
+    expect(c._query).toEqual(q);
   });
 
   it("aexlib.kintone.Query.lessThan set operator < to query.", function() {
-    expect(q.lessThan('code', 'foo')._qParams.pop()).toEqual('code < "foo"');
+    var c = q.lessThan('code', 'foo');
+    expect(c._qParams.pop()).toEqual('code < "foo"');
+    expect(c._query).toEqual(q);
   });
 
   it("aexlib.kintone.Query.greaterEqual set operator >= to query.", function() {
-    expect(q.greaterEqual('code', 'foo')._qParams.pop()).toEqual('code >= "foo"');
+    var c = q.greaterEqual('code', 'foo');
+    expect(c._qParams.pop()).toEqual('code >= "foo"');
+    expect(c._query).toEqual(q);
   });
 
   it("aexlib.kintone.Query.lessEqual set operator <= to query.", function() {
-    expect(q.lessEqual('code', 'foo')._qParams.pop()).toEqual('code <= "foo"');
+    var c = q.lessEqual('code', 'foo');
+    expect(c._qParams.pop()).toEqual('code <= "foo"');
+    expect(c._query).toEqual(q);
   });
 
   it("aexlib.kintone.Query.inList set operator in to query.", function() {
-    expect(q.inList('code', ['foo', 'bar'])._qParams.pop()).toEqual('code in ("foo","bar")');
+    var c = q.inList('code', ['foo', 'bar']);
+    expect(c._qParams.pop()).toEqual('code in ("foo","bar")');
+    expect(c._query).toEqual(q);
   });
 
   it("aexlib.kintone.Query.inList set operator in to query.", function() {
     expect(q.inList('code', 'foo')._qParams.pop()).toEqual('code in ("foo")');
   });
 
+  it("aexlib.kintone.Query.inList can use label for inList.", function() {
+    a = k.App.getApp('1', {code:{label:'bar'}}, {labelAccess:true});
+    q = a.select();
+    expect(q.inList('bar', 'foo')._qParams.pop()).toEqual('code in ("foo")');
+  });
+
+  it("aexlib.kintone.Query.inList can use label for inList with a record.", function() {
+    a2 = k.App.getApp('1', {foo:{label:'bar'}}, {labelAccess:true});
+    q = a2.select();
+    r = a.newRecord({foo:{value:'hoge'}});
+    expect(q.inList('bar', r)._qParams.pop()).toEqual('foo in ("hoge")');
+  });
+
+
   it("aexlib.kintone.Query.notInList set operator not in to query.", function() {
-    expect(q.notInList('code', ['foo', 'bar'])._qParams.pop()).toEqual('code not in ("foo","bar")');
+    var c = q.notInList('code', ['foo', 'bar']);
+    expect(c._qParams.pop()).toEqual('code not in ("foo","bar")');
+    expect(c._query).toEqual(q);
   });
 
   it("aexlib.kintone.Query.notInList set operator not in to query.", function() {
     expect(q.notInList('code', 'foo')._qParams.pop()).toEqual('code not in ("foo")');
   });
 
+  it("aexlib.kintone.Query.notInList set operator not in to query.", function() {
+    a = k.App.getApp('1', {'code':{label:'bar'}}, {labelAccess:true});
+    q = a.select();
+    expect(q.notInList('bar', 'foo')._qParams.pop()).toEqual('code not in ("foo")');
+  });
+
   it("aexlib.kintone.Query.like set operator like to query.", function() {
-    expect(q.like('code', 'foo')._qParams.pop()).toEqual('code like "foo"');
+    var c = q.like('code', 'foo');
+    expect(c._qParams.pop()).toEqual('code like "foo"');
+    expect(c._query).toEqual(q);
   });
 
   it("aexlib.kintone.Query.notLike set operator 'not like' to query.", function() {
-    expect(q.notLike('code', 'foo')._qParams.pop()).toEqual('code not like "foo"');
+    var c = q.notLike('code', 'foo');
+    expect(c._qParams.pop()).toEqual('code not like "foo"');
+    expect(c._query).toEqual(q);
   });
 
   it("aexlib.kintone.Query.or set operator 'or' to query.", function() {
@@ -612,7 +727,9 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone.Query.Condition can handle other Condition instances.", function() {
-    expect(q.cond(q.equal('code', 'foo')).toString()).toEqual('(code = "foo")');
+    var c = q.cond(q.equal('code', 'foo'));
+    expect(c.toString()).toEqual('(code = "foo")');
+    expect(c._query).toEqual(q);
   });
 
   it("aexlib.kintone.Query.Condition  .", function() {
@@ -656,11 +773,17 @@ describe("aexlib.kintone tests", function() {
     expect(r.val('foo')).toEqual('bar');
   });
 
+  it("aexlib.kintone.Record.val return a value for a label.", function() {
+    a = k.App.getApp('1', {foo:{label:'bar'}}, {labelAccess:true});
+    var r = a.newRecord({foo:{ value:'hoge'}});
+    expect(r.val('bar')).toEqual('hoge');
+  });
+
   it("aexlib.kintone.Record.val throws an Error when there is no field code.", function() {
     var r = new k.Record(a, {});
     try {
       r.val('foo');
-      expect(1).toEqual(0);
+      expect('This should not be called.').toBe();
     } catch (e) {
       // This is correct behavior.
     }
@@ -686,6 +809,13 @@ describe("aexlib.kintone tests", function() {
     var r = new k.Record(a, {});
     expect(r.val('foo', 'bar')).toBeUndefined();
     expect(r.val('foo')).toEqual('bar');
+  });
+
+  it("aexlib.kintone.Record.val(label, newValue) can set a value using the label.", function() {
+    a = k.App.getApp('1', {foo:{label:'bar'}}, {labelAccess:true});
+    var r = a.newRecord({foo:{ value:'hoge'}});
+    expect(r.val('bar', 'piyo')).toEqual('hoge');
+    expect(r.val('bar')).toEqual('piyo');
   });
 
   it("aexlib.kintone.Record(app) can create a new Record instance.", function() {
@@ -1323,6 +1453,48 @@ describe("aexlib.kintone tests", function() {
       expect(message).toBeDefined();
       done();
     });
+  });
+
+
+  it("aexlib.kintone._toFieldCode is to parse fields if opt_labelAccess is true.", function() {
+    var fields = {'piyo':{label:'piyo'}, 'foo':{label:'bar'}, 'hoge':{label:'foo'}};
+    expect(k._toCode(fields, 'foo')).toEqual('foo');
+    expect(k._toCode(fields, 'foo', false)).toEqual('foo');
+    expect(k._toCode(fields, 'bar', true)).toEqual('foo');
+    expect(k._toCode(null, 'foo')).toEqual('foo');
+    try {
+      k._toCode(null, 'bar', true);
+      expect('This should not be reached.').toBe();
+    } catch (e) {
+      expect(e).toBeDefined();
+    }
+
+    try {
+      k._toCode(fields, 'NotFoundLabel', true);
+      expect('This should not be reached.').toBe();
+    } catch (e) {
+      expect(e).toBeDefined();
+    }
+  });
+
+  it("aexlib.kintone.Query.where should fail if labelAccess and string is set.", function() {
+    try {
+      a.labelAccess(true);
+      a.where('foo = "bar"');
+      expect('This should not be called').toBe();
+    } catch (e) {
+      expect(e).toBeDefined();
+    }
+  });
+
+  it("aexlib.kintone.Query.order should fail if labelAccess and string is set.", function() {
+    try {
+      a.labelAccess(true);
+      a.order('order by foo desc');
+      expect('This should not be called.').toBe();
+    } catch (e) {
+      expect(e).toBeDefined();
+    }
   });
 });
 

@@ -25,6 +25,8 @@ THE SOFTWARE.
 var aexlib = aexlib || {};
 
 (function(k) {
+    "use strict";
+
     k._MAX_FETCH_LIMIT = 100;
     k._MAX_UPDATE_LIMIT = 100;
     k._DEFAULT_VALIDATE_REVISION = true;
@@ -34,8 +36,11 @@ var aexlib = aexlib || {};
     k._NO_UPDATE_FOUND_ERROR = 'No update found';
     k._NO_RECORD_ID_FOUND_ERROR = 'No record id found';
     k._NO_RECORD_FOUND = 'No record found';
+    k._NO_LABEL_FOUND = 'No label found';
+    k._NO_FIELDS_FOUND = 'No fields found. Use fetchFields to get it.';
     k._UNKNOWN_UPDATE_REQUEST_FOUND_ERROR = 'Unknown update request found.';
     k._CANNOT_USE_BOTH_POST_AND_PUT_REQUESTS = 'Cannot use both POST and PUT requests.';
+    k._CANNOT_USE_STRING_LABEL_ACCESS = 'Cannot use string when label access is set.';
 
     k.NUMBER_TYPE = 'NUMBER';
 
@@ -44,6 +49,8 @@ var aexlib = aexlib || {};
 
     k.RECORD_ID_CODE = '$id';
     k.RECORD_ID_TYPE = '__ID__';
+
+    k._DEFAULT_APP_OPTIONS = { lang: k._DEFAULT_LANG, labelAccess:false };
 
 
     k._isDefined = function(x) {
@@ -56,6 +63,35 @@ var aexlib = aexlib || {};
 
     k._isString = function(x) {
         return typeof x === 'string' || x instanceof String;
+    };
+
+
+    /**
+     * When opt_labelAccess is set to true, then 'code' is
+     * handled as 'label' value and then find a real field code
+     * from fields. If there is no fields, then throw error
+     * when it is set.
+     * @param fields is properties returned by fields.
+     * This is like {'code1':{label:'label'}, 'code2': ... }
+     * @param code is a key value. Default is handled as field code.
+     * @param opt_labelAccess is a flag to use label or not.
+     */
+    k._toCode = function(fields, code, opt_labelAccess) {
+        if (opt_labelAccess) {
+            if (fields) {
+                for (var fieldCode in fields) {
+                    if (fields[fieldCode].label === code) {
+                        return fieldCode;
+                    }
+                }
+                throw new Error(k._NO_LABEL_FOUND);
+            } else {
+                throw new Error(k._NO_FIELDS_FOUND);
+            }
+        } else {
+            // NOTE: It may be better to validate fields if fields is not null.
+            return code;
+        }
     };
 
     k._reject = function(message) {
@@ -139,6 +175,7 @@ var aexlib = aexlib || {};
         var i;
         var maxLoopLength;
         var record;
+        var maxBatchSize;
 
         if (k._isUndefined(records) || records.length === 0) {
             return k._reject(k._NO_RECORD_FOUND);
@@ -178,20 +215,25 @@ var aexlib = aexlib || {};
         return new k.Record(app, opt_record);
     };
 
-    k.App = function(appIdOrApp, opt_fields) {
-        if (appIdOrApp && appIdOrApp.app) {
-            this.appId = appIdOrApp.app;
-            this.app = appIdOrApp;
-        } else {
-            this.appId = appIdOrApp;
-        }
+    /**
+     * Create a new App instance.
+     *
+     * @params opt_options is additional options like lang and labelAccess flag.
+     *  e.g. opt_options = {lang:'default', labelAccess:false}
+     */
+    k.App = function(appIdOrApp, opt_fields, opt_options) {
+        var options = k._isDefined(opt_options) ? opt_options : k._DEFAULT_APP_OPTIONS;
+
+        this.appId = appIdOrApp && appIdOrApp.app ? appIdOrApp.app : appIdOrApp;
+        this.app =   appIdOrApp && appIdOrApp.app ? appIdOrApp     : undefined;
         this.fields = opt_fields;
-        this.lang = k._DEFAULT_LANG;
+        this.lang = k._isDefined(options.lang) ? options.lang : k._DEFAULT_APP_OPTIONS.lang;
+        this._labelAccess = k._isDefined(options.labelAccess) ? options.labelAccess : k._DEFAULT_APP_OPTIONS.labelAccess;
     };
 
-    k.App.getApp = function(opt_appId) {
+    k.App.getApp = function(opt_appId, opt_fields, opt_options) {
         var appId = k._isDefined(opt_appId) ? opt_appId : kintone.app.getId();
-        return new k.App(appId);
+        return new k.App(appId, opt_fields, opt_options);
     };
 
     k.App.fetchApps = function() {
@@ -236,6 +278,14 @@ var aexlib = aexlib || {};
 
     k.App.prototype.newRecord = function(opt_record) {
         return k._newRecord(this, opt_record);
+    };
+
+    k.App.prototype.labelAccess = function(opt_labelAccess) {
+        if (k._isUndefined(opt_labelAccess)) {
+            return this._labelAccess ? this._labelAccess : false;
+        } else {
+            this._labelAccess = opt_labelAccess;
+        }
     };
 
     k.Query = function(app) {
@@ -290,13 +340,16 @@ var aexlib = aexlib || {};
      * q.select('code1')
      */
     k.Query.prototype.select = function(fieldCodes) {
+        var self = this;
+
         if (k._isDefined(fieldCodes)) {
             this._fields = this._fields || [];
 
             if (Array.isArray(fieldCodes)) {
+                fieldCodes = fieldCodes.map(function(code) { return self._toCode(code); });
                 this._fields = this._fields.concat(fieldCodes);
             } else {
-                this._fields.push(fieldCodes);
+                this._fields.push(this._toCode(fieldCodes));
             }
         }
 
@@ -311,6 +364,9 @@ var aexlib = aexlib || {};
      */
     k.Query.prototype.where = function(cond) {
         if (k._isString(cond)) {
+            if (this.app && this.app.labelAccess()) {
+                throw new Error(k._CANNOT_USE_STRING_LABEL_ACCESS);
+            }
             this._qParams.push(cond);
         } else if (cond instanceof k.Query.Condition) {
             this._qParams.push(cond.toString());
@@ -322,6 +378,13 @@ var aexlib = aexlib || {};
 
 
     k.Query.prototype.order = function(orderValue) {
+        if (this.app && this.app.labelAccess()) {
+            throw new Error(k._CANNOT_USE_STRING_LABEL_ACCESS);
+        }
+        return this._addOrder(orderValue);
+    }
+
+    k.Query.prototype._addOrder = function(orderValue) {
         if (k._isUndefined(this._orders)) {
             this._orders = [];
         }
@@ -330,55 +393,55 @@ var aexlib = aexlib || {};
     };
 
     k.Query.prototype.orderAsc = function(fieldCode) {
-        return this.order(fieldCode + ' asc');
+        return this._addOrder(this._toCode(fieldCode) + ' asc');
     };
 
     k.Query.prototype.orderDesc = function(fieldCode) {
-        return this.order(fieldCode + ' desc');
+        return this._addOrder(this._toCode(fieldCode) + ' desc');
     };
 
     k.Query.prototype.equal = function(fieldCode, value) {
-        return new k.Query.Condition().equal(fieldCode, value);
+        return new k.Query.Condition(this).equal(fieldCode, value);
     };
 
     k.Query.prototype.notEqual = function(fieldCode, value) {
-        return new k.Query.Condition().notEqual(fieldCode, value);
+        return new k.Query.Condition(this).notEqual(fieldCode, value);
     };
 
     k.Query.prototype.greaterThan = function(fieldCode, value) {
-        return new k.Query.Condition().greaterThan(fieldCode, value);
+        return new k.Query.Condition(this).greaterThan(fieldCode, value);
     };
 
     k.Query.prototype.lessThan = function(fieldCode, value) {
-        return new k.Query.Condition().lessThan(fieldCode, value);
+        return new k.Query.Condition(this).lessThan(fieldCode, value);
     };
 
     k.Query.prototype.greaterEqual = function(fieldCode, value) {
-        return new k.Query.Condition().greaterEqual(fieldCode, value);
+        return new k.Query.Condition(this).greaterEqual(fieldCode, value);
     };
 
     k.Query.prototype.lessEqual = function(fieldCode, value) {
-        return new k.Query.Condition().lessEqual(fieldCode, value);
+        return new k.Query.Condition(this).lessEqual(fieldCode, value);
     };
 
     k.Query.prototype.inList = function(fieldCode, value) {
-        return new k.Query.Condition().inList(fieldCode, value);
+        return new k.Query.Condition(this).inList(fieldCode, value);
     };
 
     k.Query.prototype.notInList = function(fieldCode, value) {
-        return new k.Query.Condition().notInList(fieldCode, value);
+        return new k.Query.Condition(this).notInList(fieldCode, value);
     };
 
     k.Query.prototype.like = function(fieldCode, value) {
-        return new k.Query.Condition().like(fieldCode, value);
+        return new k.Query.Condition(this).like(fieldCode, value);
     };
 
     k.Query.prototype.notLike = function(fieldCode, value) {
-        return new k.Query.Condition().notLike(fieldCode, value);
+        return new k.Query.Condition(this).notLike(fieldCode, value);
     };
 
     k.Query.prototype.cond = function(conds) {
-        return new k.Query.Condition(conds);
+        return new k.Query.Condition(this, conds);
     };
 
 
@@ -407,13 +470,19 @@ var aexlib = aexlib || {};
         return stmt;
     };
 
+    k.Query.prototype._toCode = function(code) {
+        return this.app && this.app._labelAccess ?
+            k._toCode(this.app.fields, code, this.app._labelAccess) :
+            code;
+    };
 
-    k.Query.Condition = function(query) {
+    k.Query.Condition = function(query, opt_cond) {
+        this._query = query;
         this._qParams = [];
-        if (k._isString(query)) {
-            this._qParams.push('(' + query + ')');
-        } else if (query instanceof k.Query.Condition) {
-            this._qParams.push('(' + query.toString() + ')');
+        if (k._isString(opt_cond)) {
+            this._qParams.push('(' + opt_cond + ')');
+        } else if (opt_cond instanceof k.Query.Condition) {
+            this._qParams.push('(' + opt_cond.toString() + ')');
         }
     };
 
@@ -442,11 +511,13 @@ var aexlib = aexlib || {};
     };
 
     k.Query.Condition.prototype.inList = function(fieldCode, values) {
-        return this._appendQuery(fieldCode + ' in (' + k.Query.Condition._toListString(fieldCode, values) + ')');
+        var code = this._query._toCode(fieldCode);
+        return this._appendQuery(code + ' in (' + k.Query.Condition._toListString(code, values) + ')');
     };
 
     k.Query.Condition.prototype.notInList = function(fieldCode, values) {
-        return this._appendQuery(fieldCode + ' not in (' + k.Query.Condition._toListString(fieldCode, values) + ')');
+        var code = this._query._toCode(fieldCode);
+        return this._appendQuery(code + ' not in (' + k.Query.Condition._toListString(code, values) + ')');
     };
 
     k.Query.Condition.prototype.like = function(fieldCode, value) {
@@ -460,7 +531,7 @@ var aexlib = aexlib || {};
     k.Query.Condition.prototype.or = function(value) {
         this._qParams.push('or');
         if (k._isDefined(value)) {
-            this._qParams.push(new k.Query.Condition(value).toString());
+            this._qParams.push(new k.Query.Condition(this._query, value).toString());
         }
         return this;
     };
@@ -468,7 +539,7 @@ var aexlib = aexlib || {};
     k.Query.Condition.prototype.and = function(value) {
         this._qParams.push('and');
         if (k._isDefined(value)) {
-            this._qParams.push(new k.Query.Condition(value).toString());
+            this._qParams.push(new k.Query.Condition(this._query, value).toString());
         }
         return this;
     };
@@ -478,7 +549,8 @@ var aexlib = aexlib || {};
     };
 
     k.Query.Condition.prototype._addOperatorQuery = function(fieldCode, op, value) {
-        return this._appendQuery(fieldCode + ' ' + op + ' ' + k.Query.Condition._toQueryValue(fieldCode, value));
+        var code = this._query._toCode(fieldCode);
+        return this._appendQuery(code + ' ' + op + ' ' + k.Query.Condition._toQueryValue(code, value));
     };
 
     k.Query.Condition.prototype._appendQuery = function(queryText) {
@@ -491,7 +563,7 @@ var aexlib = aexlib || {};
 
     k.Query.Condition._toListString = function(code, values) {
         if (values instanceof k.Record) {
-            values = values.val(code);
+            values = values._getValue(code);
         }
         if (!Array.isArray(values)) {
             values = [values];
@@ -499,13 +571,13 @@ var aexlib = aexlib || {};
         return values.map(function(x) { return k.Query.Condition._escapeValue(code, x); }).join();
     };
 
-    k.Query.Condition._toQueryValue = function(fieldCode, value) {
-        return value instanceof k.Query.Constant ? value.text : k.Query.Condition._escapeValue(fieldCode, value);
+    k.Query.Condition._toQueryValue = function(code, value) {
+        return value instanceof k.Query.Constant ? value.text : k.Query.Condition._escapeValue(code, value);
     };
 
-    k.Query.Condition._escapeValue = function(fieldCode, value) {
+    k.Query.Condition._escapeValue = function(code, value) {
         if (value instanceof k.Record) {
-            value = value.val(fieldCode);
+            value = value._getValue(code);
         }
 
         value = value.toString();
@@ -710,10 +782,14 @@ var aexlib = aexlib || {};
             k._DEFAULT_VALIDATE_REVISION;
     };
 
-    k.Record.prototype.val = function(fieldCode, opt_newValue) {
+    k.Record.prototype.val = function(code, opt_newValue) {
+        code = this.app && this.app.labelAccess() ?
+            k._toCode(this.app.fields, code, this.app.labelAccess()) :
+            code;
+
         return k._isUndefined(opt_newValue) ?
-            this._getValue(fieldCode) :
-            this._setValue(fieldCode, opt_newValue);
+            this._getValue(code) :
+            this._setValue(code, opt_newValue);
     };
 
     k.Record.prototype.recordId = function(opt_newRecordId) {
@@ -808,24 +884,24 @@ var aexlib = aexlib || {};
         }
     };
 
-    k.Record.prototype._getValue = function(fieldCode) {
-        if (this.record && this.record[fieldCode]) {
-            return k.Record._convertToTypeValue(this.app.fields, this.record, fieldCode); 
+    k.Record.prototype._getValue = function(code) {
+        if (this.record && this.record[code]) {
+            return k.Record._convertToTypeValue(this.app.fields, this.record, code); 
         } else { 
-            throw new Error('No ' + fieldCode + ' found exception');
+            throw new Error('No ' + code + ' found exception');
         }
     };
 
-    k.Record.prototype._setValue = function(fieldCode, opt_newValue) {
+    k.Record.prototype._setValue = function(code, opt_newValue) {
         var oldValue;
 
-        k.Record._prepareValue(this, 'record', fieldCode);
-        oldValue = this.record[fieldCode].value;
-        this.record[fieldCode].value =
-            k.Record._convertFromTypeValue(this.app.fields, this.record, fieldCode, opt_newValue);
+        k.Record._prepareValue(this, 'record', code);
+        oldValue = this.record[code].value;
+        this.record[code].value =
+            k.Record._convertFromTypeValue(this.app.fields, this.record, code, opt_newValue);
 
-        k.Record._prepareValue(this, 'updated', fieldCode);
-        this.updated[fieldCode].value = this.record[fieldCode].value;
+        k.Record._prepareValue(this, 'updated', code);
+        this.updated[code].value = this.record[code].value;
 
         return oldValue;
     };
