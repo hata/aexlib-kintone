@@ -402,8 +402,6 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone.Query.first fetch a record and then return Promise.", function(done) {
-    var app = k.App.getApp('1');
-
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(url).toEqual('/k/v1/records');
       expect(request).toEqual('GET');
@@ -413,15 +411,13 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve) { resolve({records: [ { 'foo': {code:'foo'} } ] }); });
     });
 
-    app.first().then(function(record) {
+    a.first().then(function(record) {
       expect(record.record.foo.code).toEqual('foo');
       done();
     });
   });
 
   it("aexlib.kintone.Query.first fetch records and then return Promise.", function(done) {
-    var app = k.App.getApp('1');
-
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(url).toEqual('/k/v1/records');
       expect(request).toEqual('GET');
@@ -434,7 +430,7 @@ describe("aexlib.kintone tests", function() {
         ] }); });
     });
 
-    app.first(3).then(function(records) {
+    a.first(3).then(function(records) {
       expect(records[0].record.foo.code).toEqual('foo');
       expect(records[1].record.bar.code).toEqual('bar');
       expect(records[2].record.hoge.code).toEqual('hoge');
@@ -444,14 +440,12 @@ describe("aexlib.kintone tests", function() {
 
 
   it("aexlib.kintone.Query.first returns undefined when limit is 1.", function(done) {
-    var app = k.App.getApp('1');
-
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(params.query).toEqual('limit 1 offset 0');
       return new Promise(function(resolve) { resolve({records: []}); });
     });
 
-    app.first(1).then(function(record) {
+    a.first(1).then(function(record) {
       expect(record).toBeUndefined();
       done();
     });
@@ -459,22 +453,30 @@ describe("aexlib.kintone tests", function() {
 
 
   it("aexlib.kintone.Query.first fetch blank array when limit is 2 or more than 2.", function(done) {
-    var app = k.App.getApp('1');
-
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(params.query).toEqual('limit 3 offset 0');
       return new Promise(function(resolve) { resolve({records: []}); });
     });
 
-    app.first(3).then(function(records) {
+    a.first(3).then(function(records) {
+      expect(records).toEqual([]);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Query.first fetch blank array when limit is 2 or more than 2.", function(done) {
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(params.query).toEqual('limit 3 offset 2');
+      return new Promise(function(resolve) { resolve({records: []}); });
+    });
+
+    a.select().offset(2).first(3).then(function(records) {
       expect(records).toEqual([]);
       done();
     });
   });
 
   it("aexlib.kintone.Query.fetch fetch records and then return Promise.", function(done) {
-    var app = k.App.getApp('1');
-
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(url).toEqual('/k/v1/records');
       expect(request).toEqual('GET');
@@ -487,7 +489,7 @@ describe("aexlib.kintone tests", function() {
         ] }); });
     });
 
-    app.select().fetch().then(function(records) {
+    a.select().fetch().then(function(records) {
       expect(records[0].record.foo.code).toEqual('foo');
       expect(records[1].record.bar.code).toEqual('bar');
       expect(records[2].record.hoge.code).toEqual('hoge');
@@ -496,8 +498,6 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone.Query.fetch fetch records and then return Promise.", function(done) {
-    var app = k.App.getApp('1');
-
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(url).toEqual('/k/v1/records');
       expect(request).toEqual('GET');
@@ -506,7 +506,22 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve) { resolve({records: [] }); });
     });
 
-    app.select().fetch().then(function(records) {
+    a.select().fetch().then(function(records) {
+      expect(records).toEqual([]);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Query.fetch fetch records and then return Promise.", function(done) {
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/records');
+      expect(request).toEqual('GET');
+      expect(params.query).toEqual('limit 20 offset 10');
+      expect(params.app).toEqual('1');
+      return new Promise(function(resolve) { resolve({records: [] }); });
+    });
+
+    a.select().offset(10).limit(20).fetch().then(function(records) {
       expect(records).toEqual([]);
       done();
     });
