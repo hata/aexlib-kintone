@@ -128,7 +128,12 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone._recursiveFetch can call more than limit and return as an array.", function(done) {
-    var fetchParams = { url: '/url', request:'GET', resultProperty:'result' };
+    var toParamsHandler = function(startOffset, batchSize) {
+        return {offset:startOffset, limit:batchSize};
+    };
+    var fetchParams = { url: '/url', request:'GET', resultProperty:'result',
+        toParamsHandler:toParamsHandler
+    };
     var result;
     var i;
 
@@ -153,7 +158,14 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone._recursiveFetch can set the number of the max entries.", function(done) {
-    var fetchParams = { url: '/url', request:'GET', resultProperty:'result', max: 2 };
+    var toParamsHandler = function(startOffset, batchSize) { 
+        return {offset:startOffset, limit:batchSize};
+    };
+    var fetchParams = { url: '/url', request:'GET', resultProperty:'result',
+        toParamsHandler:toParamsHandler
+    };
+    var startOffset = 0;
+    var maxRecordNum = 2;
     var result;
     var i;
 
@@ -172,14 +184,21 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve, reject) { resolve({'result': result}); });
     });
 
-    k._recursiveFetch(fetchParams).then(function(resp) {
+    k._recursiveFetch(fetchParams, startOffset, maxRecordNum).then(function(resp) {
       expect(resp.length).toEqual(2);
       done();
     });
   });
 
   it("aexlib.kintone._recursiveFetch can set the number of the max entries for more than 100 entries.", function(done) {
-    var fetchParams = { url: '/url', request:'GET', resultProperty:'result', max: 101 };
+    var toParamsHandler = function(startOffset, batchSize) { 
+        return {offset:startOffset, limit:batchSize};
+    };
+    var fetchParams = { url: '/url', request:'GET', resultProperty:'result',
+        toParamsHandler:toParamsHandler
+    };
+    var startOffset = 0;
+    var maxRecordNum = 101;
     var result;
     var i;
 
@@ -203,14 +222,19 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve, reject) { resolve({'result': result}); });
     });
 
-    k._recursiveFetch(fetchParams).then(function(resp) {
+    k._recursiveFetch(fetchParams, startOffset, maxRecordNum).then(function(resp) {
       expect(resp.length).toEqual(101);
       done();
     });
   });
 
   it("aexlib.kintone._recursiveFetch can set additional params.", function(done) {
-    var fetchParams = { url: '/url', request:'GET', resultProperty:'result', params: { name: 'foo' } };
+    var toParamsHandler = function(startOffset, batchSize) { 
+        return { name:'foo', offset:startOffset, limit:batchSize};
+    };
+    var fetchParams = { url: '/url', request:'GET', resultProperty:'result',
+        toParamsHandler:toParamsHandler
+    };
 
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(params.name).toEqual('foo');
@@ -448,6 +472,47 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.Query.fetch fetch records and then return Promise.", function(done) {
+    var app = k.App.getApp('1');
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/records');
+      expect(request).toEqual('GET');
+      expect(params.query).toEqual('limit 100 offset 0');
+      expect(params.app).toEqual('1');
+      return new Promise(function(resolve) { resolve({records: [
+          { 'foo' : {code:'foo'} },
+          { 'bar' : {code:'bar'} },
+          { 'hoge': {code:'hoge'} }
+        ] }); });
+    });
+
+    app.select().fetch().then(function(records) {
+      expect(records[0].record.foo.code).toEqual('foo');
+      expect(records[1].record.bar.code).toEqual('bar');
+      expect(records[2].record.hoge.code).toEqual('hoge');
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Query.fetch fetch records and then return Promise.", function(done) {
+    var app = k.App.getApp('1');
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/records');
+      expect(request).toEqual('GET');
+      expect(params.query).toEqual('limit 100 offset 0');
+      expect(params.app).toEqual('1');
+      return new Promise(function(resolve) { resolve({records: [] }); });
+    });
+
+    app.select().fetch().then(function(records) {
+      expect(records).toEqual([]);
+      done();
+    });
+  });
+
+
   it("aexlib.kintone.App.select can start query.", function() {
     var app = k.App.getApp('1');
     var q = app.select();
@@ -568,14 +633,23 @@ describe("aexlib.kintone tests", function() {
     expect(stmt).toEqual('foo = "bar" order by foo asc, bar desc');
   });
 
-  it("aexlib.kintone.Query.limit and offset is added at the end of query param.", function() {
-    var stmt = q.where(q.equal('foo', 'bar').lessThan('foo', 'hoge')).orderAsc('foo').limit(5).offset(1)._buildQuery();
-    expect(stmt).toEqual('foo = "bar" and foo < "hoge" order by foo asc limit 5 offset 1');
+  it("aexlib.kintone.Query.offset can set an offset value", function() {
+    expect(q.offset(1)._offset).toEqual(1);
   });
 
-  it("aexlib.kintone.Query.offset can set an offset value", function() {
-    expect(q.offset(1)._buildQuery()).toEqual('offset 1');
+  it("aexlib.kintone.Query.limit can set an limit value", function() {
+    expect(q.limit(1)._limit).toEqual(1);
   });
+
+  it("aexlib.kintone.Query._buildQuery can set startOffset and batchSize with stmt.", function() {
+    expect(q.where('a = b')._buildQuery(0, 1)).toEqual('a = b limit 1 offset 0');
+  });
+
+  it("aexlib.kintone.Query._buildQuery can set startOffset and batchSize only.", function() {
+    expect(q._buildQuery(0, 1)).toEqual('limit 1 offset 0');
+    expect(q._buildQuery(1)).toEqual('offset 1');
+  });
+
 
   it("aexlib.kintone.Query.Condition._escapeValue returns a value which may escape quote chars.", function() {
     expect(k.Query.Condition._escapeValue('code', 'foo')).toEqual('"foo"');

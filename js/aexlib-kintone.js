@@ -125,28 +125,27 @@ var aexlib = aexlib || {};
      * fetchParams.url = '/k/v1/apps'
      * fetchParams.request = 'GET'
      * fetchParams.resultProperty = 'apps'
-     * options:
-     * fetchParams.max = <Set max returns>
-     * fetchParams.params = <Set a specific params for kintone.api request.>
+     * fetchParams.toParamsHandler(startOffset, batchSize)
+     *
+     * @param opt_limit is the maximum number of records to be returned.
+     * If null is set, then returns all records.
      */
     k._recursiveFetch = function(fetchParams, opt_offset, opt_limit, opt_result) {
         var offset = opt_offset || 0;
-        var limit = opt_limit || k._MAX_FETCH_LIMIT;
+        var limit = opt_limit || null;
         var result = opt_result || [];
+        var params;
 
-        if (fetchParams.max && fetchParams.max > 0 && fetchParams.max < (offset + limit)) {
-            limit = fetchParams.max - offset;
-        }
+        var batchSize = limit === null || limit > k._MAX_FETCH_LIMIT ? k._MAX_FETCH_LIMIT : limit;
+        var remains = limit === null ? null : limit - batchSize;
 
-        var params = k._isDefined(fetchParams.params) ? fetchParams.params : {};
-        params.limit = limit;
-        params.offset = offset;
+        params = fetchParams.toParamsHandler(offset, batchSize);
 
         return k._requestFunc()(fetchParams.url, fetchParams.request, params).then(function(resp) {
             result = result.concat(resp[fetchParams.resultProperty]);
-            if (resp[fetchParams.resultProperty].length === limit &&
-                (!fetchParams.max || (offset + limit) < fetchParams.max)) {
-                return k._recursiveFetch(fetchParams, offset + limit, limit, result);
+            if (resp[fetchParams.resultProperty].length === batchSize &&
+                (remains === null || remains > 0)) {
+                return k._recursiveFetch(fetchParams, offset + batchSize, remains, result);
             } else {
                 return result;
             }
@@ -249,7 +248,16 @@ var aexlib = aexlib || {};
     };
 
     k.App.fetchApps = function() {
-        return k._recursiveFetch({url: '/k/v1/apps', request:'GET', resultProperty: 'apps'}).then(function(apps) {
+        var toParamsHandler = function(startOffset, batchSize) {
+            return { offset: startOffset, limit: batchSize };
+        };
+        var fetchParams = {
+            url: '/k/v1/apps',
+            request:'GET',
+            resultProperty: 'apps',
+            toParamsHandler: toParamsHandler
+        };
+        return k._recursiveFetch(fetchParams).then(function(apps) {
             return apps.map(function(app) { return new k.App(app); });
         });
     };
@@ -325,17 +333,20 @@ var aexlib = aexlib || {};
      * If kintone returns an error response, then reject is called by Promise.
      */
     k.Query.prototype.first = function(opt_maxRecordNum) {
-        var maxRecordNum = k._isDefined(opt_maxRecordNum) ? opt_maxRecordNum : 1;
         var self = this;
-        var params;
+        var maxRecordNum = k._isDefined(opt_maxRecordNum) ? opt_maxRecordNum : 1;
+        var startOffset = k._isDefined(this._offset) ? this._offset : 0;
+        var toParamsHandler = function(offset, batchSize) {
+            return { app: self.app.appId, fields: self._fields, query:self._buildQuery(offset, batchSize) };
+        };
+        var fetchParams = {
+            url: '/k/v1/records',
+            request:'GET',
+            resultProperty: 'records',
+            toParamsHandler: toParamsHandler
+        };
 
-        this.offset(0);
-        this.limit(maxRecordNum);
-        params = { app: this.app.appId, fields: this._fields, query:this._buildQuery() };
-
-        return k._recursiveFetch({url: '/k/v1/records', request:'GET', params:params,
-            resultProperty: 'records', max: maxRecordNum}).then(function(records) {
-
+        return k._recursiveFetch(fetchParams, startOffset, maxRecordNum).then(function(records) {
             return records.length > 1 ?
                 records.map(function(rec) { return new k.Record(self.app, rec); }) :
                 (records.length === 1 ? new k.Record(self.app, records[0]) :
@@ -343,6 +354,25 @@ var aexlib = aexlib || {};
         });
     };
 
+    k.Query.prototype.fetch = function() {
+        var self = this;
+        var toParamsHandler = function(offset, batchSize) {
+            return {app: self.app.appId, fields: self._fields, query: self._buildQuery(offset, batchSize) };
+        };
+
+        var startOffset = k._isDefined(this._offset) ? this._offset : 0;
+        var maxRecordNum = k._isDefined(this._limit) ? this._limit : null;
+        var fetchParams = {
+            url: '/k/v1/records',
+            request:'GET',
+            resultProperty: 'records',
+            toParamsHandler: toParamsHandler
+        };
+
+        return k._recursiveFetch(fetchParams, startOffset, maxRecordNum).then(function(records) {
+            return records.map(function(rec) { return self.app.newRecord(rec); });
+        });
+    };
 
     /**
      * Set fields parameter to query records.
@@ -467,18 +497,20 @@ var aexlib = aexlib || {};
         return this;
     };
 
-    k.Query.prototype._buildQuery = function() {
+    k.Query.prototype._buildQuery = function(opt_startOffset, opt_batchSize) {
         var stmt = this._qParams.join(' ');
+
         if (k._isDefined(this._orders)) {
             var orderBy = stmt ? ' order by ' : 'order by ';
             stmt += orderBy + this._orders.join(', ');
         }
-        if (k._isDefined(this._limit)) {
-            stmt += (stmt ? ' limit ' : 'limit ') + this._limit;
+        if (k._isDefined(opt_batchSize)) {
+            stmt += (stmt ? ' limit ' : 'limit ') + opt_batchSize;
         }
-        if (k._isDefined(this._offset)) {
-            stmt += (stmt ? ' offset ' : 'offset ') + this._offset;
+        if (k._isDefined(opt_startOffset)) {
+            stmt += (stmt ? ' offset ' : 'offset ') + opt_startOffset;
         }
+
         return stmt;
     };
 
