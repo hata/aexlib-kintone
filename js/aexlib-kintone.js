@@ -52,6 +52,12 @@ var aexlib = aexlib || {};
 
     k._DEFAULT_APP_OPTIONS = { lang: k._DEFAULT_LANG, labelAccess:false };
 
+    k._HOOK_API_KINTONE_API = 'kintone.api';
+
+    k._HOOK_API_TABLE = {
+        'kintone.api': null
+    };
+
 
     k._isDefined = function(x) {
         return x !== undefined;
@@ -94,18 +100,20 @@ var aexlib = aexlib || {};
         }
     };
 
-    k._reject = function(message) {
-        if (kintone.Promise) {
-            return kintone.Promise.reject(message);
-        } else if (Promise) {
-            return Promise.reject(message);
-        } else {
-            throw new Error('No Promise found.');
+    k._reject = function(error) {
+        try {
+            return kintone.Promise.reject(error);
+        } catch (e) {
+            // If the environment is not in kintone env, then try to use Promise.
+            return Promise.reject(error);
         }
     };
 
     k._requestFunc = function() {
-        if (kintone.api) {
+        var hookFunc = k._HOOK_API_TABLE[k._HOOK_API_KINTONE_API];
+        if (k._isDefined(hookFunc) && hookFunc !== null) {
+            return hookFunc;
+        } else if (kintone && kintone.api) {
             return kintone.api;
         } else {
             throw new Error('No kintone.api found.');
@@ -143,7 +151,7 @@ var aexlib = aexlib || {};
                 return result;
             }
         }, function(errResp) {
-            return k._reject(k._isDefined(errResp.message) ? errResp.message : k._UNKNOWN_ERROR);
+            return k._reject(errResp);
         });
     };
 
@@ -154,7 +162,7 @@ var aexlib = aexlib || {};
             }
             return resp;
         }, function(errResp) {
-            return k._reject(k._isDefined(errResp.message) ? errResp.message : k._UNKNOWN_ERROR);
+            return k._reject(errResp);
         });
     };
 
@@ -178,7 +186,7 @@ var aexlib = aexlib || {};
         var maxBatchSize;
 
         if (k._isUndefined(records) || records.length === 0) {
-            return k._reject(k._NO_RECORD_FOUND);
+            return k._reject({message:k._NO_RECORD_FOUND});
         }
 
         maxBatchSize = records.length > k._MAX_UPDATE_LIMIT ? k._MAX_UPDATE_LIMIT : records.length;
@@ -202,7 +210,7 @@ var aexlib = aexlib || {};
             var result = updateParams.toResultHandler(records, resp, opt_result);
             return remains ? k._recursiveUpdate(updateParams, remains, validateRevisions, result) : result;
         }, function(errResp) {
-            return k._reject(k._isDefined(errResp.message) ? errResp.message : k._UNKNOWN_ERROR);
+            return k._reject(errResp);
         });
     };
 
@@ -213,6 +221,10 @@ var aexlib = aexlib || {};
 
     k._newRecord = function(app, opt_record) {
         return new k.Record(app, opt_record);
+    };
+
+    k.hookKintoneAPI = function(api, callback) {
+        k._HOOK_API_TABLE[api] = callback;
     };
 
     /**
@@ -382,7 +394,7 @@ var aexlib = aexlib || {};
             throw new Error(k._CANNOT_USE_STRING_LABEL_ACCESS);
         }
         return this._addOrder(orderValue);
-    }
+    };
 
     k.Query.prototype._addOrder = function(orderValue) {
         if (k._isUndefined(this._orders)) {
@@ -620,7 +632,7 @@ var aexlib = aexlib || {};
        }
 
        if (creatingRecords.length > 0 && updatingRecords.length > 0) {
-           return k._reject(k._CANNOT_USE_BOTH_POST_AND_PUT_REQUESTS);
+           return k._reject({message:k._CANNOT_USE_BOTH_POST_AND_PUT_REQUESTS});
        }
 
        if (creatingRecords.length > 0) {
@@ -628,7 +640,7 @@ var aexlib = aexlib || {};
        } else if (updatingRecords.length > 0) {
            return k.Record.updateAll(updatingRecords, opt_validateRevisions);
        } else {
-           return k._reject(k._NO_UPDATE_FOUND_ERROR);
+           return k._reject({message:k._NO_UPDATE_FOUND_ERROR});
        }
     };
 
@@ -862,7 +874,7 @@ var aexlib = aexlib || {};
                 return resp;
             });
         } else {
-            return k._reject(k._NO_UPDATE_FOUND_ERROR);
+            return k._reject({message:k._NO_UPDATE_FOUND_ERROR});
         }
     };
 
@@ -880,7 +892,7 @@ var aexlib = aexlib || {};
                 return resp;
             });
         } else {
-            return k._reject(k._NO_RECORD_ID_FOUND_ERROR);
+            return k._reject({message:k._NO_RECORD_ID_FOUND_ERROR});
         }
     };
 
@@ -906,6 +918,18 @@ var aexlib = aexlib || {};
         return oldValue;
     };
 
+
+    // For node.js, App, Query, and Record are exported objects.
+    try {
+        if (k._isDefined(exports)) {
+            exports.App = k.App;
+            exports.Query = k.Query;
+            exports.Record = k.Record;
+            exports.hookKintoneAPI = k.hookKintoneAPI;
+        }
+    } catch (e) {
+        // If there is no module || exports, then ignore it.
+    }
 
 })(aexlib.kintone = aexlib.kintone || {});
 

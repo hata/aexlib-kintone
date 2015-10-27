@@ -32,6 +32,10 @@ describe("aexlib.kintone tests", function() {
     q = a.select();
   });
 
+  afterEach(function() {
+    k._HOOK_API_TABLE['kintone.api'] = null;
+  });
+
   it("aexlib.kintone._reject returns Promise to return reject result.", function(done) {
     k._reject('Failed').then(function() {}, function(message) {
       expect(message).toEqual('Failed');
@@ -105,20 +109,20 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve, reject) { reject({message: 'failed'}); });
     });
 
-    k.App.fetchApps().then(function() {}, function(message) {
-      expect(message).toEqual('failed');
+    k.App.fetchApps().then(function() {}, function(error) {
+      expect(error.message).toEqual('failed');
       done();
     });
   });
 
-  it("aexlib.kintone.App.fetchApps calls reject and may return Unknown error function when it failed.", function(done) {
+  it("aexlib.kintone.App.fetchApps calls reject and return an object as it is.", function(done) {
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(url).toEqual('/k/v1/apps');
       return new Promise(function(resolve, reject) { reject({}); });
     });
 
-    k.App.fetchApps().then(function() {}, function(message) {
-      expect(message).toEqual('Unknown error');
+    k.App.fetchApps().then(function() {}, function(error) {
+      expect(error).toEqual({});
       done();
     });
   });
@@ -306,7 +310,7 @@ describe("aexlib.kintone tests", function() {
     });
 
     app.fetchApp().then(function() {}, function(error) {
-      expect(error).toEqual('failed');
+      expect(error.message).toEqual('failed');
       expect(app.app).toBeUndefined();
       done();
     });
@@ -357,7 +361,7 @@ describe("aexlib.kintone tests", function() {
     });
 
     app.fetchFields().then(function() {}, function(error) {
-      expect(error).toEqual('failed');
+      expect(error.message).toEqual('failed');
       expect(app.fields).toBeUndefined();
       done();
     });
@@ -1180,21 +1184,8 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve, reject) { reject({message: 'failed'}); });
     });
 
-    k.Record.removeAll(records).then(function() {}, function(message) {
-      expect(message).toEqual('failed');
-      done();
-    });
-  });
-
-  it("aexlib.kintone.Record.removeAll returns unknown error message when kintone.api calls rejected Promise.", function(done) {
-    var records = [ a.newRecord({'$id':{value:'2'}, '$revision':{value:'3'}}) ];
-
-    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
-      return new Promise(function(resolve, reject) { reject({wrongFormat:'failed'}); });
-    });
-
-    k.Record.removeAll(records).then(function() {}, function(message) {
-      expect(message).toEqual(k._UNKNOWN_ERROR);
+    k.Record.removeAll(records).then(function() {}, function(error) {
+      expect(error.message).toEqual('failed');
       done();
     });
   });
@@ -1495,6 +1486,15 @@ describe("aexlib.kintone tests", function() {
     } catch (e) {
       expect(e).toBeDefined();
     }
+  });
+
+  it("aexlib.kintone.hookKintoneAPI is to register a hook function for kintone.api to send http requests.", function() {
+    var called = false;
+    var hookFunc = function() { called = true; };
+    expect(k._HOOK_API_TABLE['kintone.api']).toEqual(null);
+    k.hookKintoneAPI('kintone.api', hookFunc);
+    expect(k._HOOK_API_TABLE['kintone.api']).toEqual(hookFunc);
+    expect(k._requestFunc()).toEqual(hookFunc);
   });
 });
 
