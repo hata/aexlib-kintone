@@ -81,8 +81,8 @@ describe("aexlib.kintone tests", function() {
   it("aexlib.kintone.App.fetchApps", function(done) {
     var result = {
       apps: [
-        { app: '1' },
-        { app: '2' }
+        { appId: '1', name:'appName1' },
+        { appId: '2', name:'appName2' }
       ]
     };
 
@@ -95,10 +95,10 @@ describe("aexlib.kintone tests", function() {
     });
 
     k.App.fetchApps().then(function(apps) {
-      expect(apps[0].appId).toEqual(result.apps[0].app);
-      expect(apps[1].appId).toEqual(result.apps[1].app);
-      expect(apps[0].app).toBeDefined();
-      expect(apps[1].app).toBeDefined();
+      expect(apps[0].appId).toEqual(result.apps[0].appId);
+      expect(apps[1].appId).toEqual(result.apps[1].appId);
+      expect(apps[0].app).toEqual(result.apps[0]);
+      expect(apps[1].app).toEqual(result.apps[1]);
       done();
     });
   });
@@ -324,7 +324,7 @@ describe("aexlib.kintone tests", function() {
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(url).toEqual('/k/v1/app/form/fields');
       expect(request).toEqual('GET');
-      expect(params.id).toEqual('1');
+      expect(params.app).toEqual('1');
       expect(params.lang).toEqual('default');
       return new Promise(function(resolve) { resolve({properties: { 'foo': {code:'foo'} } }); });
     });

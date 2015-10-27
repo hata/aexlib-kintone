@@ -236,8 +236,8 @@ var aexlib = aexlib || {};
     k.App = function(appIdOrApp, opt_fields, opt_options) {
         var options = k._isDefined(opt_options) ? opt_options : k._DEFAULT_APP_OPTIONS;
 
-        this.appId = appIdOrApp && appIdOrApp.app ? appIdOrApp.app : appIdOrApp;
-        this.app =   appIdOrApp && appIdOrApp.app ? appIdOrApp     : undefined;
+        this.appId = appIdOrApp && appIdOrApp.appId ? appIdOrApp.appId : appIdOrApp;
+        this.app =   appIdOrApp && appIdOrApp.appId ? appIdOrApp       : undefined;
         this.fields = opt_fields;
         this.lang = k._isDefined(options.lang) ? options.lang : k._DEFAULT_APP_OPTIONS.lang;
         this._labelAccess = k._isDefined(options.labelAccess) ? options.labelAccess : k._DEFAULT_APP_OPTIONS.labelAccess;
@@ -263,7 +263,7 @@ var aexlib = aexlib || {};
      */
     k.App.prototype.fetchFields = function(opt_params) {
         var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/app/form/fields' : '/k/v1/app/form/fields';
-        return k._fetch(url, 'GET', {id: this.appId, lang: this.lang}, this, 'fields');
+        return k._fetch(url, 'GET', {app: this.appId, lang: this.lang}, this, 'fields');
     };
 
     /**
