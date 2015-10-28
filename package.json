@@ -1,0 +1,36 @@
+{
+  "name": "aexlib-kintone",
+  "version": "0.0.1",
+  "description": "JavaScript wrapper library for kintone REST API",
+  "main": "index.js",
+  "scripts": {
+    "test": "node_modules/karma/bin/karma start --single-run",
+    "test-browser": "node_modules/karma/bin/karma start --single-run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hata/aexlib-kintone.git"
+  },
+  "keywords": [
+    "kintone",
+    "javascript"
+  ],
+  "author": "hata",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/hata/aexlib-kintone/issues"
+  },
+  "homepage": "https://github.com/hata/aexlib-kintone#readme",
+  "devDependencies": {
+    "jasmine": "^2.3.2",
+    "jasmine-core": "^2.3.4",
+    "jasmine-node": "^1.14.5",
+    "jasmine-node-karma": "^1.6.1",
+    "karma": "^0.13.14",
+    "karma-chrome-launcher": "^0.2.1",
+    "karma-coverage": "^0.5.3",
+    "karma-jasmine": "^0.3.6",
+    "karma-jshint-preprocessor": "0.0.6",
+    "request": "^2.65.0"
+  }
+}
