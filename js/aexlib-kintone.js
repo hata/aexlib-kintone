@@ -27,7 +27,7 @@ var aexlib = aexlib || {};
 (function(k) {
     "use strict";
 
-    k._MAX_FETCH_LIMIT = 100;
+    k._MAX_FETCH_BATCH_SIZE = 100;
     k._MAX_UPDATE_LIMIT = 100;
     k._DEFAULT_VALIDATE_REVISION = true;
     k._DEFAULT_LANG = "default";
@@ -126,23 +126,29 @@ var aexlib = aexlib || {};
      * fetchParams.request = 'GET'
      * fetchParams.resultProperty = 'apps'
      * fetchParams.toParamsHandler(startOffset, batchSize)
+     * options
+     * fetchParams.toResultHandler(resp, cumulativeResult)
      *
-     * @param opt_limit is the maximum number of records to be returned.
+     * @param opt_max is the maximum number of records to be returned.
      * If null is set, then returns all records.
      */
-    k._recursiveFetch = function(fetchParams, opt_offset, opt_limit, opt_result) {
+    k._recursiveFetch = function(fetchParams, opt_offset, opt_max, opt_result) {
         var offset = opt_offset || 0;
-        var limit = opt_limit || null;
+        var max  = k._isUndefined(opt_max) ? null : opt_max;
         var result = opt_result || [];
         var params;
 
-        var batchSize = limit === null || limit > k._MAX_FETCH_LIMIT ? k._MAX_FETCH_LIMIT : limit;
-        var remains = limit === null ? null : limit - batchSize;
+        var batchSize = max === null || max > k._MAX_FETCH_BATCH_SIZE ? k._MAX_FETCH_BATCH_SIZE : max;
+        var remains = max === null ? null : max - batchSize;
 
         params = fetchParams.toParamsHandler(offset, batchSize);
 
         return k._requestFunc()(fetchParams.url, fetchParams.request, params).then(function(resp) {
-            result = result.concat(resp[fetchParams.resultProperty]);
+            if (fetchParams.toResultHandler) {
+                result = fetchParams.toResultHandler(resp, result);
+            } else {
+                result = result.concat(resp[fetchParams.resultProperty]);
+            }
             if (resp[fetchParams.resultProperty].length === batchSize &&
                 (remains === null || remains > 0)) {
                 return k._recursiveFetch(fetchParams, offset + batchSize, remains, result);
@@ -333,24 +339,15 @@ var aexlib = aexlib || {};
      * If kintone returns an error response, then reject is called by Promise.
      */
     k.Query.prototype.first = function(opt_maxRecordNum) {
-        var self = this;
         var maxRecordNum = k._isDefined(opt_maxRecordNum) ? opt_maxRecordNum : 1;
-        var startOffset = k._isDefined(this._offset) ? this._offset : 0;
-        var toParamsHandler = function(offset, batchSize) {
-            return { app: self.app.appId, fields: self._fields, query:self._buildQuery(offset, batchSize) };
-        };
-        var fetchParams = {
-            url: '/k/v1/records',
-            request:'GET',
-            resultProperty: 'records',
-            toParamsHandler: toParamsHandler
-        };
+        this.limit(maxRecordNum);
 
-        return k._recursiveFetch(fetchParams, startOffset, maxRecordNum).then(function(records) {
+        return this.fetch().then(function(records) {
             return records.length > 1 ?
-                records.map(function(rec) { return new k.Record(self.app, rec); }) :
-                (records.length === 1 ? new k.Record(self.app, records[0]) :
-                                        (maxRecordNum > 1 ? [] : undefined));
+                records :
+                (records.length === 1 ?
+                    records[0] :
+                    (maxRecordNum > 1 ? [] : undefined ));
         });
     };
 
@@ -359,14 +356,18 @@ var aexlib = aexlib || {};
         var toParamsHandler = function(offset, batchSize) {
             return {app: self.app.appId, fields: self._fields, query: self._buildQuery(offset, batchSize) };
         };
-
+        var toResultHandler = function(resp, cumulativeResult) {
+            // TODO: resp.totalCount can get here and then return it later ?
+            return cumulativeResult.concat(resp.records);
+        };
         var startOffset = k._isDefined(this._offset) ? this._offset : 0;
         var maxRecordNum = k._isDefined(this._limit) ? this._limit : null;
         var fetchParams = {
             url: '/k/v1/records',
             request:'GET',
             resultProperty: 'records',
-            toParamsHandler: toParamsHandler
+            toParamsHandler: toParamsHandler,
+            toResultHandler: toResultHandler
         };
 
         return k._recursiveFetch(fetchParams, startOffset, maxRecordNum).then(function(records) {
