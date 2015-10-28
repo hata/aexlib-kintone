@@ -253,9 +253,24 @@ var aexlib = aexlib || {};
         return new k.App(appId, opt_fields, opt_options);
     };
 
-    k.App.fetchApps = function() {
+    k.App.fetchApps = function(opt_params) {
         var toParamsHandler = function(startOffset, batchSize) {
-            return { offset: startOffset, limit: batchSize };
+            var params = { offset: startOffset, limit: batchSize };
+            if (k._isDefined(opt_params)) {
+                if (opt_params.ids) {
+                    params.ids = opt_params.ids;
+                }
+                if (opt_params.codes) {
+                    params.codes = opt_params.codes;
+                }
+                if (opt_params.name) {
+                    params.name = opt_params.name;
+                }
+                if (opt_params.spaceIds) {
+                    params.spaceIds = opt_params.spaceIds;
+                }
+            }
+            return params;
         };
         var fetchParams = {
             url: '/k/v1/apps',

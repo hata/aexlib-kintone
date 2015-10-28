@@ -121,8 +121,23 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve, reject) { reject({}); });
     });
 
-    k.App.fetchApps().then(function() {}, function(error) {
+    k.App.fetchApps({}).then(function() {}, function(error) {
       expect(error).toEqual({});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.fetchApps", function(done) {
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/apps');
+      expect(params.ids, [1]);
+      expect(params.codes, [2]);
+      expect(params.name, 'test');
+      expect(params.spaceIds, [3]);
+      return new Promise(function(resolve, reject) { reject({}); });
+    });
+
+    k.App.fetchApps({ids:[1],codes:[2],name:'test',spaceIds:[3]}).then(function() {}, function(error) {
       done();
     });
   });
