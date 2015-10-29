@@ -52,10 +52,12 @@ var aexlib = aexlib || {};
 
     k._DEFAULT_APP_OPTIONS = { lang: k._DEFAULT_LANG, labelAccess:false };
 
-    k._HOOK_API_KINTONE_API = 'kintone.api';
+    k._KINTONE_API = 'kintone.api';
+    k._KINTONE_APP_GETID = 'kintone.app.getId';
 
     k._HOOK_API_TABLE = {
-        'kintone.api': null
+        'kintone.api': null,
+        'kintone.app.getId': null
     };
 
 
@@ -109,14 +111,18 @@ var aexlib = aexlib || {};
         }
     };
 
-    k._requestFunc = function() {
-        var hookFunc = k._HOOK_API_TABLE[k._HOOK_API_KINTONE_API];
+    k._kintoneFunc = function(kintoneAPIName) {
+        var hookFunc = k._HOOK_API_TABLE[kintoneAPIName];
         if (k._isDefined(hookFunc) && hookFunc !== null) {
             return hookFunc;
-        } else if (kintone && kintone.api) {
-            return kintone.api;
         } else {
-            throw new Error('No kintone.api found.');
+            if (kintoneAPIName == k._KINTONE_API) {
+                return kintone.api;
+            } else if (kintoneAPIName == k._KINTONE_APP_GETID) {
+                return kintone.app.getId;
+            }
+
+            throw new Error('No ' + kintoneAPIName + ' found.');
         }
     };
 
@@ -143,7 +149,7 @@ var aexlib = aexlib || {};
 
         params = fetchParams.toParamsHandler(offset, batchSize);
 
-        return k._requestFunc()(fetchParams.url, fetchParams.request, params).then(function(resp) {
+        return k._kintoneFunc(k._KINTONE_API)(fetchParams.url, fetchParams.request, params).then(function(resp) {
             if (fetchParams.toResultHandler) {
                 result = fetchParams.toResultHandler(resp, result);
             } else {
@@ -161,7 +167,7 @@ var aexlib = aexlib || {};
     };
 
     k._fetch = function(url, request, params, obj, property) {
-        return k._requestFunc()(url, request, params).then(function(resp) {
+        return k._kintoneFunc(k._KINTONE_API)(url, request, params).then(function(resp) {
             if (obj && property) {
                 obj[property] = resp;
             }
@@ -211,7 +217,7 @@ var aexlib = aexlib || {};
         }
         params = updateParams.toParamsHandler(appId, records, validateRevisions);
 
-        return k._requestFunc()(updateParams.url, updateParams.request, params).then(function(resp) {
+        return k._kintoneFunc(k._KINTONE_API)(updateParams.url, updateParams.request, params).then(function(resp) {
             var result = updateParams.toResultHandler(records, resp, opt_result);
             return remains ? k._recursiveUpdate(updateParams, remains, validateRevisions, result) : result;
         }, function(errResp) {
@@ -249,7 +255,7 @@ var aexlib = aexlib || {};
     };
 
     k.App.getApp = function(opt_appId, opt_fields, opt_options) {
-        var appId = k._isDefined(opt_appId) ? opt_appId : kintone.app.getId();
+        var appId = k._isDefined(opt_appId) ? opt_appId : k._kintoneFunc(k._KINTONE_APP_GETID)();
         return new k.App(appId, opt_fields, opt_options);
     };
 

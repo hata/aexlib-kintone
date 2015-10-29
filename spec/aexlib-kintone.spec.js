@@ -1592,13 +1592,33 @@ describe("aexlib.kintone tests", function() {
     }
   });
 
-  it("aexlib.kintone.hookKintoneAPI is to register a hook function for kintone.api to send http requests.", function() {
+  it("aexlib.kintone.hookKintoneAPI can register a hook function for kintone.api to send http requests.", function() {
     var called = false;
     var hookFunc = function() { called = true; };
+    expect(k._KINTONE_API).toEqual('kintone.api');
     expect(k._HOOK_API_TABLE['kintone.api']).toEqual(null);
     k.hookKintoneAPI('kintone.api', hookFunc);
     expect(k._HOOK_API_TABLE['kintone.api']).toEqual(hookFunc);
-    expect(k._requestFunc()).toEqual(hookFunc);
+    expect(k._kintoneFunc('kintone.api')).toEqual(hookFunc);
+  });
+
+  it("aexlib.kintone.hookKintoneAPI can register a hook function for kintone.app.getId.", function() {
+    var hookFunc = function() { return true; };
+    expect(k._KINTONE_APP_GETID).toEqual('kintone.app.getId');
+    expect(k._HOOK_API_TABLE[k._KINTONE_APP_GETID]).toEqual(null);
+    k.hookKintoneAPI(k._KINTONE_APP_GETID, hookFunc);
+    expect(k._HOOK_API_TABLE[k._KINTONE_APP_GETID]).toEqual(hookFunc);
+    expect(k._kintoneFunc(k._KINTONE_APP_GETID)).toEqual(hookFunc);
+    expect(k._kintoneFunc(k._KINTONE_APP_GETID)()).toEqual(true);
+  });
+
+  it("aexlib.kintone.hookKintoneAPI throws Error when there is no hook function.", function() {
+    try {
+      k._kintoneFunc('Not Found Func');
+      expect('This should not be called').toBe();
+    } catch (e) {
+      expect(e).toBeDefined();
+    }
   });
 });
 
