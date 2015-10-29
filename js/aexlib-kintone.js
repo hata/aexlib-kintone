@@ -367,7 +367,7 @@ var aexlib = aexlib || {};
         var maxRecordNum = k._isDefined(opt_maxRecordNum) ? opt_maxRecordNum : 1;
         this.limit(maxRecordNum);
 
-        return this.fetch().then(function(records) {
+        return this.find().then(function(records) {
             return records.length > 1 ?
                 records :
                 (records.length === 1 ?
@@ -376,7 +376,7 @@ var aexlib = aexlib || {};
         });
     };
 
-    k.Query.prototype.fetch = function() {
+    k.Query.prototype.find = function() {
         var self = this;
         var toParamsHandler = function(offset, batchSize) {
             return {app: self.app.appId, fields: self._fields, query: self._buildQuery(offset, batchSize) };

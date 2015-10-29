@@ -504,7 +504,7 @@ describe("aexlib.kintone tests", function() {
         ] }); });
     });
 
-    a.select().fetch().then(function(records) {
+    a.select().find().then(function(records) {
       expect(records[0].record.foo.code).toEqual('foo');
       expect(records[1].record.bar.code).toEqual('bar');
       expect(records[2].record.hoge.code).toEqual('hoge');
@@ -521,7 +521,7 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve) { resolve({records: [] }); });
     });
 
-    a.select().fetch().then(function(records) {
+    a.select().find().then(function(records) {
       expect(records).toEqual([]);
       done();
     });
@@ -536,7 +536,7 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve) { resolve({records: [] }); });
     });
 
-    a.select().offset(10).limit(20).fetch().then(function(records) {
+    a.select().offset(10).limit(20).find().then(function(records) {
       expect(records).toEqual([]);
       done();
     });

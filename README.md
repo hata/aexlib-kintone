@@ -32,7 +32,7 @@ Query records.
   var app = k.App.getApp();
   var q = app.select();
   var cond = q.equal('fieldCode', 'foo'); // fieldCode = "foo" is set to query param.
-  q.where(q.equal('fieldCode', 'foo')).fetch().then(function(records) {
+  q.where(q.equal('fieldCode', 'foo')).find().then(function(records) {
       // records is an array of k.Record instances.
       for (var i = 0;i < records.length;i++) {
           console.log(records[i].val('fieldCode'));
