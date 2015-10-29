@@ -73,6 +73,10 @@ var aexlib = aexlib || {};
         return typeof x === 'string' || x instanceof String;
     };
 
+    k._toDoubleDigits = function(num) {
+        return ('0' + num).slice(-2);
+    };
+
 
     /**
      * When opt_labelAccess is set to true, then 'code' is
@@ -804,32 +808,124 @@ var aexlib = aexlib || {};
         };
     };
 
+    k.Record._convertToNumber = function(x) {
+        return k._isString(x) ? (x.indexOf('.') != -1 ? parseFloat(x) : parseInt(x)) : x;
+    };
+
+    k.Record._convertFromNumber = function(x) {
+        return k._isString(x) ? x : '' + x;
+    };
+
+    // format: 2012-01-11T11:30:00Z
+    k.Record._convertToDateTime = function(dateString) {
+        if (dateString instanceof Date) {
+            return dateString;
+        }
+
+        if (!dateString || dateString.length < 'yyyy-MM-ddThh:mm:ssZ'.length) {
+            return null;
+        }
+
+        var year = parseInt(dateString.substring(0, 4));
+        var month = parseInt(dateString.substring(5, 7));
+        var day = parseInt(dateString.substring(8, 10));
+        var hour = parseInt(dateString.substring(11, 13));
+        var min = parseInt(dateString.substring(14, 16));
+        var sec = parseInt(dateString.substring(17, 19));
+
+        if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hour) || isNaN(min) || isNaN(sec)) {
+            return null;
+        }
+
+        if (dateString.charAt(4)  != '-' || dateString.charAt(7)  != '-' ||
+            dateString.charAt(10) != 'T' || dateString.charAt(13) != ':' ||
+            dateString.charAt(16) != ':' || dateString.charAt(19) != 'Z') {
+            return null;
+        }
+
+        return new Date(Date.UTC(year, month -1, day, hour, min, sec));
+    };
+
+
+    // format: 2012-01-11T11:30:00Z
+    k.Record._convertFromDateTime = function(jsDate) {
+        if (k._isString(jsDate)) {
+            return jsDate;
+        }
+
+        var yyyy = jsDate.getUTCFullYear();
+        var month = k._toDoubleDigits(jsDate.getUTCMonth() + 1);
+        var day = k._toDoubleDigits(jsDate.getUTCDate());
+        var hour = k._toDoubleDigits(jsDate.getUTCHours());
+        var min = k._toDoubleDigits(jsDate.getUTCMinutes());
+        var sec = k._toDoubleDigits(jsDate.getUTCSeconds());
+
+        return '' + yyyy + '-' + month + '-' + day + 'T' + hour + ':' + min + ':' + sec + 'Z';
+    };
+
+    // Format is yyyy-MM-dd
+    k.Record._convertToDate = function(dateString) {
+        if (dateString instanceof Date) {
+            return dateString;
+        }
+
+        if (!dateString || dateString.length < 10) {
+            return null;
+        }
+
+        var year = parseInt(dateString.substring(0, 4));
+        if (isNaN(year)) {
+            return null;
+        }
+
+        var month = parseInt(dateString.substring(5, 7));
+        if (isNaN(month)) {
+            return null;
+        }
+
+        var day = parseInt(dateString.substring(8, 10));
+        if (isNaN(day)) {
+            return null;
+        }
+
+        return new Date(year, month -1, day);
+    };
+
+    // format is yyyy-MM-dd
+    k.Record._convertFromDate = function(jsDate) {
+        return k._isString(jsDate) ?
+                   jsDate :
+                   (jsDate.getFullYear() + '-' +
+                    k._toDoubleDigits(jsDate.getMonth() + 1) + '-' +
+                    k._toDoubleDigits(jsDate.getDate()));
+    };
+
+    // ref. https://cybozudev.zendesk.com/hc/ja/articles/202166330-%E3%83%95%E3%82%A3%E3%83%BC%E3%83%AB%E3%83%89%E5%BD%A2%E5%BC%8F
+    k.Record._CONVERT_TO_TABLE = {
+        '__REVISION__': k.Record._convertToNumber,
+        '__ID__':       k.Record._convertToNumber,
+        'CREATED_TIME': k.Record._convertToDateTime,
+        'DATE':         k.Record._convertToDate,
+        'DATETIME':     k.Record._convertToDateTime,
+        'NUMBER':       k.Record._convertToNumber,
+        'UPDATED_TIME': k.Record._convertToDateTime
+    };
+    k.Record._CONVERT_FROM_TABLE = {
+        'DATE':         k.Record._convertFromDate,
+        'DATETIME':     k.Record._convertFromDateTime,
+        'NUMBER':       k.Record._convertFromNumber
+    };
+
     k.Record._convertToTypeValue = function(fields, record, code) {
         var value = record && record[code] ? record[code].value : undefined;
         var type = fields && fields[code] ? fields[code].type : (record && record[code] ? record[code].type : undefined);
-        var funcTable = {};
-        var func;
-
-        funcTable[k.NUMBER_TYPE] = function(x) {
-            return k._isString(x) ? (x.indexOf('.') != -1 ? parseFloat(x) : parseInt(x)) : x;
-        };
-        funcTable[k.REVISION_TYPE] = funcTable[k.NUMBER_TYPE];
-        funcTable[k.RECORD_ID_TYPE] = funcTable[k.NUMBER_TYPE];
-
-        func = funcTable[type];
+        var func = k.Record._CONVERT_TO_TABLE[type];
         return func ? func(value) : value;
     };
 
     k.Record._convertFromTypeValue = function(fields, record, code, newValue) {
         var type = fields && fields[code] ? fields[code].type : (record && record[code] ? record[code].type : undefined);
-        var funcTable = {};
-        var func;
-
-        funcTable[k.NUMBER_TYPE] = function(value) { return k._isString(value) ? value : '' + value; };
-        funcTable[k.REVISION_TYPE] = funcTable[k.NUMBER_TYPE];
-        funcTable[k.RECORD_ID_TYPE] = funcTable[k.NUMBER_TYPE];
-
-        func = funcTable[type];
+        var func = k.Record._CONVERT_FROM_TABLE[type];
         return func ? func(newValue) : newValue;
     };
 
@@ -859,36 +955,28 @@ var aexlib = aexlib || {};
     };
 
     k.Record.prototype.recordId = function(opt_newRecordId) {
-        if (k._isUndefined(opt_newRecordId)) {
-            if (this.record && this.record[k.RECORD_ID_CODE]) {
-                var value = k.Record._convertToTypeValue(this.app.fields, this.record, k.RECORD_ID_CODE);
-                return k._isString(value) ? parseInt(value) : value;
-            } else {
-                return undefined;
-            }
-        } else {
-            k.Record._prepareValue(this, 'record', k.RECORD_ID_CODE);
-            var oldRecordId = this.record[k.RECORD_ID_CODE].value;
-            this.record[k.RECORD_ID_CODE].value = opt_newRecordId;
-            return oldRecordId;
-        }
+        return this._internalNumberVal(k.RECORD_ID_CODE, opt_newRecordId);
     };
 
     k.Record.prototype.revision = function(opt_newRevision) {
-        if (k._isUndefined(opt_newRevision)) {
-            if (this.record && this.record[k.REVISION_CODE]) {
-                var value = k.Record._convertToTypeValue(this.app.fields, this.record, k.REVISION_CODE);
+        return this._internalNumberVal(k.REVISION_CODE, opt_newRevision);
+    };
+
+    k.Record.prototype._internalNumberVal = function(fieldCode, opt_newValue) {
+        if (k._isUndefined(opt_newValue)) {
+            if (this.record && this.record[fieldCode]) {
+                var value = k.Record._convertToTypeValue(this.app.fields, this.record, fieldCode);
                 return k._isString(value) ? parseInt(value) : value;
             } else {
                 return undefined;
             }
         } else {
-            k.Record._prepareValue(this, 'record', k.REVISION_CODE);
-            var oldRevision = this.record[k.REVISION_CODE].value;
-            this.record[k.REVISION_CODE].value = opt_newRevision;
-            return oldRevision;
+            k.Record._prepareValue(this, 'record', fieldCode);
+            var oldValue = this.record[fieldCode].value;
+            this.record[fieldCode].value = opt_newValue;
+            return oldValue;
         }
-    };
+    }
 
     k.Record.prototype.isUpdated = function() {
         return k._isDefined(this.updated);

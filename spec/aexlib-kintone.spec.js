@@ -1620,5 +1620,70 @@ describe("aexlib.kintone tests", function() {
       expect(e).toBeDefined();
     }
   });
+
+  it("aexlib.kintone._convertToNumber converts a value to a number.", function() {
+    expect(k.Record._convertToNumber('1')).toEqual(1);
+    expect(k.Record._convertToNumber('-1.5')).toEqual(-1.5);
+    expect(k.Record._convertToNumber('0')).toEqual(0);
+    expect(k.Record._convertToNumber(1)).toEqual(1);
+    expect(k.Record._convertToNumber(-1.5)).toEqual(-1.5);
+    expect(k.Record._convertToNumber(0)).toEqual(0);
+  });
+
+  it("aexlib.kintone._convertFromNumber converts a number to text.", function() {
+    expect(k.Record._convertFromNumber('1')).toEqual('1');
+    expect(k.Record._convertFromNumber('-1.5')).toEqual('-1.5');
+    expect(k.Record._convertFromNumber('0')).toEqual('0');
+    expect(k.Record._convertFromNumber(1)).toEqual('1');
+    expect(k.Record._convertFromNumber(-1.5)).toEqual('-1.5');
+    expect(k.Record._convertFromNumber(0)).toEqual('0');
+  });
+
+  it("k._toDoubleDigits fill '0' text to a number when the number is less than 10.", function() {
+    expect(k._toDoubleDigits(0)).toEqual('00');
+    expect(k._toDoubleDigits(9)).toEqual('09');
+    expect(k._toDoubleDigits(10)).toEqual('10');
+  });
+
+  it("aexlib.kintone._convertToDate converts a value to Date.", function() {
+    expect(k.Record._convertToDate('2012-01-11')).toEqual(new Date(2012, 0, 11));
+    expect(k.Record._convertToDate('2004-02-29')).toEqual(new Date(2004, 1, 29));
+    expect(k.Record._convertToDate(new Date(2012, 11, 31))).toEqual(new Date(2012, 11, 31));
+    expect(k.Record._convertToDate('2012')).toBeNull();
+    expect(k.Record._convertToDate('yyyy-01-11')).toBeNull();
+    expect(k.Record._convertToDate('2012-MM-11')).toBeNull();
+    expect(k.Record._convertToDate('2012-01-dd')).toBeNull();
+  });
+
+  it("aexlib.kintone._convertFromDate converts a date to text.", function() {
+    expect(k.Record._convertFromDate('2012-01-11')).toEqual('2012-01-11');
+    expect(k.Record._convertFromDate(new Date(2012, 0, 11))).toEqual('2012-01-11');
+    expect(k.Record._convertFromDate(new Date(2004, 1, 29))).toEqual('2004-02-29');
+  });
+
+  it("aexlib.kintone._convertToDateTime converts text to a date time.", function() {
+    var date = new Date(Date.UTC(2012, 0, 11, 13, 30, 0));
+    expect(k.Record._convertToDateTime('2012-01-11T13:30:00Z')).toEqual(date);
+    expect(k.Record._convertToDateTime(date)).toEqual(date);
+    expect(k.Record._convertToDateTime('')).toBeNull();
+    expect(k.Record._convertToDateTime('2012-01-11T13:30:00')).toBeNull();
+    expect(k.Record._convertToDateTime('yyyy-01-11T13:30:00Z')).toBeNull();
+    expect(k.Record._convertToDateTime('2012-MM-11T13:30:00Z')).toBeNull();
+    expect(k.Record._convertToDateTime('2012-01-ddT13:30:00Z')).toBeNull();
+    expect(k.Record._convertToDateTime('2012-01-11THH:30:00Z')).toBeNull();
+    expect(k.Record._convertToDateTime('2012-01-11T13:mm:00Z')).toBeNull();
+    expect(k.Record._convertToDateTime('2012-01-11T13:30:SSZ')).toBeNull();
+    expect(k.Record._convertToDateTime('2012-01-11T13:30:00T')).toBeNull();
+  });
+
+
+  it("aexlib.kintone._convertFromDateTime converts a date time to text.", function() {
+    var msec = Date.UTC(2012, 0, 11, 11, 30, 0);
+    var date = new Date();
+    date.setTime(msec);
+    expect(k.Record._convertFromDateTime(date)).toEqual('2012-01-11T11:30:00Z');
+    expect(k.Record._convertFromDateTime('2012-01-11T11:30:00Z')).toEqual('2012-01-11T11:30:00Z');
+  });
+
 });
 
