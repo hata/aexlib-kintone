@@ -60,10 +60,11 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone.App.getApp(appId) can set fields and additional options.", function() {
-    var app = k.App.getApp('1', {'foo':{label:'bar'}}, {lang:'en', labelAccess:true});
+    var fields = {properties: {'foo':{label:'bar'}}};
+    var app = k.App.getApp('1', fields, {lang:'en', labelAccess:true});
     expect(app.appId).toEqual('1');
     expect(app.app).toBeUndefined();
-    expect(app.fields).toEqual({'foo':{label:'bar'}});
+    expect(app.fields).toEqual(fields);
     expect(app.lang).toEqual('en');
     expect(app._labelAccess).toEqual(true);
     expect(app.labelAccess()).toEqual(true);
@@ -656,7 +657,7 @@ describe("aexlib.kintone tests", function() {
     var app = k.App.getApp('1');
     var q = app.select();
     expect(q.app).toEqual(app);
-    expect(q._fields).toBeUndefined();
+    expect(q._queryFields).toBeUndefined();
   });
 
   it("aexlib.kintone.App.where can start query.", function() {
@@ -705,13 +706,13 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone.Query.select can use label when option is set.", function() {
-    var app = k.App.getApp('1', {foo:{label:'bar'}}, {labelAccess:true});
+    var app = k.App.getApp('1', {properties:{foo:{label:'bar'}}}, {labelAccess:true});
     var q = app.select('bar');
     expect(q._queryFields).toEqual(['foo']);
   });
 
   it("aexlib.kintone.Query.select can use label when option is set.", function() {
-    var app = k.App.getApp('1', {foo:{label:'bar'}, bar:{label:'hoge'}}, {labelAccess:true});
+    var app = k.App.getApp('1', {properties:{foo:{label:'bar'}, bar:{label:'hoge'}}}, {labelAccess:true});
     var q = app.select(['bar', 'hoge']);
     expect(q._queryFields).toEqual(['foo', 'bar']);
   });
@@ -746,7 +747,7 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone.Query.orderAsc can set order by foo asc when labelAccess is true.", function() {
-    a = k.App.getApp('1', {foo:{label:'bar'}});
+    a = k.App.getApp('1', {properties:{foo:{label:'bar'}}});
     a.labelAccess(true);
     q = a.select();
     expect(q.orderAsc("bar")._buildQuery()).toEqual('order by foo asc');
@@ -757,7 +758,7 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone.Query.orderDesc can set order by foo desc when labelAccess is true.", function() {
-    a = k.App.getApp('1', {foo:{label:'bar'}});
+    a = k.App.getApp('1', {properties:{foo:{label:'bar'}}});
     a.labelAccess(true);
     q = a.select();
     expect(q.orderDesc("bar")._buildQuery()).toEqual('order by foo desc');
@@ -815,7 +816,7 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone.Query._toOperatorQuery set query params from label.", function() {
-    a = k.App.getApp('1', {foo:{label:'bar'}});
+    a = k.App.getApp('1', {properties:{foo:{label:'bar'}}});
     a.labelAccess(true);
     expect(new k.Query.Condition(a.select())._addOperatorQuery('bar', 'op', 'hoge')._qParams.pop()).toEqual('foo op "hoge"');
   });
@@ -827,14 +828,14 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone.Query.equal set operator = to query with a record for labelAccess == true.", function() {
-    var a2 = k.App.getApp('1', {foo:{label:'bar'}}, {labelAccess:true});
+    var a2 = k.App.getApp('1', {properties:{foo:{label:'bar'}}}, {labelAccess:true});
     var r = a2.newRecord({foo:{value:'hoge'}});
     var c = q.equal('foo', r);
     expect(c._qParams.pop()).toEqual('foo = "hoge"');
   });
 
   it("aexlib.kintone.Query.equal set operator = to query with a record for labelAccess == false.", function() {
-    var a2 = k.App.getApp('1', {foo:{label:'bar'}}, {labelAccess:true});
+    var a2 = k.App.getApp('1', {properties:{foo:{label:'bar'}}}, {labelAccess:true});
     var q2 = a2.select();
     var r = a.newRecord({foo:{value:'hoge'}});
     var c = q2.equal('bar', r);
@@ -882,13 +883,13 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone.Query.inList can use label for inList.", function() {
-    a = k.App.getApp('1', {code:{label:'bar'}}, {labelAccess:true});
+    a = k.App.getApp('1', {properties:{code:{label:'bar'}}}, {labelAccess:true});
     q = a.select();
     expect(q.inList('bar', 'foo')._qParams.pop()).toEqual('code in ("foo")');
   });
 
   it("aexlib.kintone.Query.inList can use label for inList with a record.", function() {
-    a2 = k.App.getApp('1', {foo:{label:'bar'}}, {labelAccess:true});
+    a2 = k.App.getApp('1', {properties:{foo:{label:'bar'}}}, {labelAccess:true});
     q = a2.select();
     r = a.newRecord({foo:{value:'hoge'}});
     expect(q.inList('bar', r)._qParams.pop()).toEqual('foo in ("hoge")');
@@ -906,7 +907,7 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone.Query.notInList set operator not in to query.", function() {
-    a = k.App.getApp('1', {'code':{label:'bar'}}, {labelAccess:true});
+    a = k.App.getApp('1', {properties:{'code':{label:'bar'}}}, {labelAccess:true});
     q = a.select();
     expect(q.notInList('bar', 'foo')._qParams.pop()).toEqual('code not in ("foo")');
   });
@@ -991,7 +992,7 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone.Record.val return a value for a label.", function() {
-    a = k.App.getApp('1', {foo:{label:'bar'}}, {labelAccess:true});
+    a = k.App.getApp('1', {properties:{foo:{label:'bar'}}}, {labelAccess:true});
     var r = a.newRecord({foo:{ value:'hoge'}});
     expect(r.val('bar')).toEqual('hoge');
   });
@@ -1029,7 +1030,7 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone.Record.val(label, newValue) can set a value using the label.", function() {
-    a = k.App.getApp('1', {foo:{label:'bar'}}, {labelAccess:true});
+    a = k.App.getApp('1', {properties:{foo:{label:'bar'}}}, {labelAccess:true});
     var r = a.newRecord({foo:{ value:'hoge'}});
     expect(r.val('bar', 'piyo')).toEqual('hoge');
     expect(r.val('bar')).toEqual('piyo');
@@ -1113,6 +1114,7 @@ describe("aexlib.kintone tests", function() {
     expect(k.Record._convertToTypeValue(null, {'foo':{value:0,     type:'NUMBER'}}, 'foo')).toEqual(0);
     expect(k.Record._convertToTypeValue(null, {'foo':{value:'0.5', type:'NUMBER'}}, 'foo')).toEqual(0.5);
     expect(k.Record._convertToTypeValue(null, {'foo':{value:0.5,   type:'NUMBER'}}, 'foo')).toEqual(0.5);
+    expect(k.Record._convertToTypeValue({properties:{foo:{type:'NUMBER'}}}, {'foo':{value:'0.5'}}, 'foo')).toEqual(0.5);
   });
 
   it("aexlib.kintone.Record._convertFromTypeValue can support converting NUMBER to JavaScript class object.", function() {
@@ -1122,20 +1124,21 @@ describe("aexlib.kintone tests", function() {
     expect(k.Record._convertFromTypeValue(null, {'foo':{type:'NUMBER'}}, 'foo', 0)).toEqual('0');
     expect(k.Record._convertFromTypeValue(null, {'foo':{type:'NUMBER'}}, 'foo', '0.5')).toEqual('0.5');
     expect(k.Record._convertFromTypeValue(null, {'foo':{type:'NUMBER'}}, 'foo', 0.5)).toEqual('0.5');
+    expect(k.Record._convertFromTypeValue({properties:{foo:{type:'NUMBER'}}}, {'foo':{value:1}}, 'foo', 0.5)).toEqual('0.5');
   });
 
   it("aexlib.kintone.Record._convertToTypeValue can support converting SINGLE_LINE_TEXT to JavaScript String.", function() {
     expect(k.Record._convertToTypeValue(null, {'foo':{value:'bar', type:'SINGLE_LINE_TEXT'}}, 'foo')).toEqual('bar');
     expect(k.Record._convertToTypeValue(null, {'foo':{value:'',    type:'SINGLE_LINE_TEXT'}}, 'foo')).toEqual('');
-    expect(k.Record._convertToTypeValue({foo:{type:'SINGLE_LINE_TEXT'}}, {'foo':{value:'bar'}}, 'foo')).toEqual('bar');
-    expect(k.Record._convertToTypeValue({foo:{type:'SINGLE_LINE_TEXT'}}, {'foo':{value:''}},    'foo')).toEqual('');
+    expect(k.Record._convertToTypeValue({properties:{foo:{type:'SINGLE_LINE_TEXT'}}}, {'foo':{value:'bar'}}, 'foo')).toEqual('bar');
+    expect(k.Record._convertToTypeValue({properties:{foo:{type:'SINGLE_LINE_TEXT'}}}, {'foo':{value:''}},    'foo')).toEqual('');
   });
 
   it("aexlib.kintone.Record._convertFromTypeValue can support converting SINGLE_LINE_TEXT to JavaScript String.", function() {
     expect(k.Record._convertFromTypeValue(null, {'foo':{type:'SINGLE_LINE_TEXT'}}, 'foo', 'bar')).toEqual('bar');
     expect(k.Record._convertFromTypeValue(null, {'foo':{type:'SINGLE_LINE_TEXT'}}, 'foo', '')).toEqual('');
-    expect(k.Record._convertFromTypeValue({foo:{type:'SINGLE_LINE_TEXT'}}, {'foo':{}}, 'foo', 'bar')).toEqual('bar');
-    expect(k.Record._convertFromTypeValue({foo:{type:'SINGLE_LINE_TEXT'}}, {'foo':{}}, 'foo', '')).toEqual('');
+    expect(k.Record._convertFromTypeValue({properties:{foo:{type:'SINGLE_LINE_TEXT'}}}, {'foo':{}}, 'foo', 'bar')).toEqual('bar');
+    expect(k.Record._convertFromTypeValue({properties:{foo:{type:'SINGLE_LINE_TEXT'}}}, {'foo':{}}, 'foo', '')).toEqual('');
   });
 
   it("aexlib.kintone.Record._convertToTypeValue returns no converted value when there is no type.", function() {
@@ -1661,7 +1664,7 @@ describe("aexlib.kintone tests", function() {
 
 
   it("aexlib.kintone._toFieldCode is to parse fields if opt_labelAccess is true.", function() {
-    var fields = {'piyo':{label:'piyo'}, 'foo':{label:'bar'}, 'hoge':{label:'foo'}};
+    var fields = {properties:{'piyo':{label:'piyo'}, 'foo':{label:'bar'}, 'hoge':{label:'foo'}}};
     expect(k._toCode(fields, 'foo')).toEqual('foo');
     expect(k._toCode(fields, 'foo', false)).toEqual('foo');
     expect(k._toCode(fields, 'bar', true)).toEqual('foo');

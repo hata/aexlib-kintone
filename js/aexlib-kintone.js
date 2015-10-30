@@ -83,7 +83,8 @@ var aexlib = aexlib || {};
      * handled as 'label' value and then find a real field code
      * from fields. If there is no fields, then throw error
      * when it is set.
-     * @param fields is properties returned by fields.
+     * @param fields is like {properties:{...}} which is returned by
+     * fetchFields.
      * This is like {'code1':{label:'label'}, 'code2': ... }
      * @param code is a key value. Default is handled as field code.
      * @param opt_labelAccess is a flag to use label or not.
@@ -91,8 +92,8 @@ var aexlib = aexlib || {};
     k._toCode = function(fields, code, opt_labelAccess) {
         if (opt_labelAccess) {
             if (fields) {
-                for (var fieldCode in fields) {
-                    if (fields[fieldCode].label === code) {
+                for (var fieldCode in fields.properties) {
+                    if (fields.properties[fieldCode].label === code) {
                         return fieldCode;
                     }
                 }
@@ -247,6 +248,7 @@ var aexlib = aexlib || {};
      *
      * @params opt_options is additional options like lang and labelAccess flag.
      *  e.g. opt_options = {lang:'default', labelAccess:false}
+     * @params opt_fields is like {properties:{code:{type: ...}}}
      */
     k.App = function(appIdOrApp, opt_fields, opt_options) {
         var options = k._isDefined(opt_options) ? opt_options : k._DEFAULT_APP_OPTIONS;
@@ -934,14 +936,16 @@ var aexlib = aexlib || {};
     };
 
     k.Record._convertToTypeValue = function(fields, record, code) {
+        var props = fields ? fields.properties: undefined;
         var value = record && record[code] ? record[code].value : undefined;
-        var type = fields && fields[code] ? fields[code].type : (record && record[code] ? record[code].type : undefined);
+        var type = props && props[code] ? props[code].type : (record && record[code] ? record[code].type : undefined);
         var func = k.Record._CONVERT_TO_TABLE[type];
         return func ? func(value) : value;
     };
 
     k.Record._convertFromTypeValue = function(fields, record, code, newValue) {
-        var type = fields && fields[code] ? fields[code].type : (record && record[code] ? record[code].type : undefined);
+        var props = fields ? fields.properties : undefined;
+        var type = props && props[code] ? props[code].type : (record && record[code] ? record[code].type : undefined);
         var func = k.Record._CONVERT_FROM_TABLE[type];
         return func ? func(newValue) : newValue;
     };
@@ -993,7 +997,7 @@ var aexlib = aexlib || {};
             this.record[fieldCode].value = opt_newValue;
             return oldValue;
         }
-    }
+    };
 
     k.Record.prototype.isUpdated = function() {
         return k._isDefined(this.updated);
