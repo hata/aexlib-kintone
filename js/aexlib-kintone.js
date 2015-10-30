@@ -314,6 +314,15 @@ var aexlib = aexlib || {};
     };
 
     /**
+     * opt_params = {preview: true|false}
+     */
+    k.App.prototype.fetchLayout = function(opt_params) {
+        var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/app/form/layout' : '/k/v1/app/form/layout';
+        return k._fetch(url, 'GET', {app: this.appId}, this, 'layout');
+    };
+
+
+    /**
      * @param opt_maxRecordNum is not set, then this value is 1. In this case,
      * Promise returns a Record instance instead of an array of Records.
      * If this value is 2 or more than 2, then Promise returns an array of Record
@@ -387,7 +396,7 @@ var aexlib = aexlib || {};
     k.Query.prototype.find = function() {
         var self = this;
         var toParamsHandler = function(offset, batchSize) {
-            return {app: self.app.appId, fields: self._fields, query: self._buildQuery(offset, batchSize) };
+            return {app: self.app.appId, fields: self._queryFields, query: self._buildQuery(offset, batchSize) };
         };
         var toResultHandler = function(resp, cumulativeResult) {
             // TODO: resp.totalCount can get here and then return it later ?
@@ -419,13 +428,13 @@ var aexlib = aexlib || {};
         var self = this;
 
         if (k._isDefined(fieldCodes)) {
-            this._fields = this._fields || [];
+            this._queryFields = this._queryFields || [];
 
             if (Array.isArray(fieldCodes)) {
                 fieldCodes = fieldCodes.map(function(code) { return self._toCode(code); });
-                this._fields = this._fields.concat(fieldCodes);
+                this._queryFields = this._queryFields.concat(fieldCodes);
             } else {
-                this._fields.push(this._toCode(fieldCodes));
+                this._queryFields.push(this._toCode(fieldCodes));
             }
         }
 

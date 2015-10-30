@@ -466,6 +466,55 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.App.fetchLayout fetch layout info and return Promise.", function(done) {
+    var app = k.App.getApp('1');
+    expect(app.layout).toBeUndefined();
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/app/form/layout');
+      expect(request).toEqual('GET');
+      expect(params).toEqual({app:'1'});
+      return new Promise(function(resolve) { resolve({layout:[{type:'ROW'}]}); });
+    });
+
+    app.fetchLayout().then(function(resp) {
+      expect(resp.layout.length).toEqual(1);
+      expect(app.layout).toBeDefined();
+      expect(app.layout.layout[0].type).toEqual('ROW');
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.fetchLayout fetch layout info for preview and return Promise.", function(done) {
+    var app = k.App.getApp('1');
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app/form/layout');
+      return new Promise(function(resolve) { resolve({revision:'2', layout:[{type:'ROW'}]}); });
+    });
+
+    app.fetchLayout({preview:true}).then(function(resp) {
+      expect(app.layout.revision).toEqual('2');
+      expect(app.layout.layout[0].type).toEqual('ROW');
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.fetchLayout may return error message when there is a problem.", function(done) {
+    var app = k.App.getApp('1');
+    expect(app.layout).toBeUndefined();
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      return k._reject({message:'failed'});
+    });
+
+    app.fetchLayout().then(function() {}, function(error) {
+      expect(error.message).toEqual('failed');
+      expect(app.layout).toBeUndefined();
+      done();
+    });
+  });
+
   it("aexlib.kintone.App.newRecord creates a new Record instance.", function() {
     expect(a.newRecord({foo:{value:'bar'}}).val('foo')).toEqual('bar');
   });
@@ -625,12 +674,12 @@ describe("aexlib.kintone tests", function() {
 
   it("aexlib.kintone.Query.select can set fields using a string.", function() {
     var q = k.App.getApp('1').select('foo');
-    expect(q._fields).toEqual(['foo']);
+    expect(q._queryFields).toEqual(['foo']);
   });
 
   it("aexlib.kintone.Query.select can set fields using an array.", function() {
     var q = k.App.getApp('1').select(['foo', 'bar']);
-    expect(q._fields).toEqual(['foo', 'bar']);
+    expect(q._queryFields).toEqual(['foo', 'bar']);
   });
 
   it("aexlib.kintone.Query.select set fields params for kintone.api.", function(done) {
@@ -658,13 +707,13 @@ describe("aexlib.kintone tests", function() {
   it("aexlib.kintone.Query.select can use label when option is set.", function() {
     var app = k.App.getApp('1', {foo:{label:'bar'}}, {labelAccess:true});
     var q = app.select('bar');
-    expect(q._fields).toEqual(['foo']);
+    expect(q._queryFields).toEqual(['foo']);
   });
 
   it("aexlib.kintone.Query.select can use label when option is set.", function() {
     var app = k.App.getApp('1', {foo:{label:'bar'}, bar:{label:'hoge'}}, {labelAccess:true});
     var q = app.select(['bar', 'hoge']);
-    expect(q._fields).toEqual(['foo', 'bar']);
+    expect(q._queryFields).toEqual(['foo', 'bar']);
   });
 
   it("aexlib.kintone.Query.where can set string.", function() {
