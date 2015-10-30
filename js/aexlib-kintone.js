@@ -323,6 +323,15 @@ var aexlib = aexlib || {};
         return k._fetch(url, 'GET', {app: this.appId}, this, 'layout');
     };
 
+    /**
+     * Fetch /k/v1/app/views request.
+     *
+     * opt_params = {preview: true|false}
+     */
+    k.App.prototype.fetchViews = function(opt_params) {
+        var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/app/views' : '/k/v1/app/views';
+        return k._fetch(url, 'GET', {app: this.appId, lang: this.lang}, this, 'views');
+    };
 
     /**
      * @param opt_maxRecordNum is not set, then this value is 1. In this case,

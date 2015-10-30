@@ -516,6 +516,56 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.App.fetchViews fetch views info and return Promise.", function(done) {
+    var result = {views:{'viewNameKey':{name:'viewNameKey'}}};
+    var app = k.App.getApp('1');
+    expect(app.views).toBeUndefined();
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/app/views');
+      expect(request).toEqual('GET');
+      expect(params).toEqual({app:'1',lang:'default'});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    app.fetchViews().then(function(resp) {
+      expect(resp.views).toEqual(result.views);
+      expect(app.views).toBeDefined();
+      expect(app.views.views.viewNameKey.name).toEqual('viewNameKey');
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.fetchViews fetch views info for preview and return Promise.", function(done) {
+    var result = {views:{'viewNameKey':{name:'viewNameKey'}}};
+    var app = k.App.getApp('1');
+    expect(app.views).toBeUndefined();
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app/views');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    app.fetchViews({preview:true}).then(function(resp) {
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.fetchViews may return error message when there is a problem.", function(done) {
+    var app = k.App.getApp('1');
+    expect(app.layout).toBeUndefined();
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      return k._reject({message:'failed'});
+    });
+
+    app.fetchViews().then(function() {}, function(error) {
+      expect(error.message).toEqual('failed');
+      expect(app.layout).toBeUndefined();
+      done();
+    });
+  });
+
   it("aexlib.kintone.App.newRecord creates a new Record instance.", function() {
     expect(a.newRecord({foo:{value:'bar'}}).val('foo')).toEqual('bar');
   });
