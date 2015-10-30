@@ -300,6 +300,14 @@ var aexlib = aexlib || {};
     /**
      * opt_params = {preview: true|false}
      */
+    k.App.prototype.fetchSettings = function(opt_params) {
+        var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/app/settings' : '/k/v1/app/settings';
+        return k._fetch(url, 'GET', {app: this.appId, lang: this.lang}, this, 'settings');
+    };
+
+    /**
+     * opt_params = {preview: true|false}
+     */
     k.App.prototype.fetchFields = function(opt_params) {
         var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/app/form/fields' : '/k/v1/app/form/fields';
         return k._fetch(url, 'GET', {app: this.appId, lang: this.lang}, this, 'fields');

@@ -406,6 +406,66 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.App.fetchSettings fetch settings and return Promise.", function(done) {
+    var result = {
+      "name": "Foo",
+      "description": "desc",
+      "icon": {
+        "type": "PRESET",
+        "key": "APP60"
+      },
+      "theme": "WHITE",
+      "revision": "24"
+    };
+
+    var app = k.App.getApp('1');
+    expect(app.settings).toBeUndefined();
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/app/settings');
+      expect(request).toEqual('GET');
+      expect(params.app).toEqual('1');
+      expect(params.lang).toEqual('default');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    app.fetchSettings().then(function(resp) {
+      expect(app.settings).toBeDefined();
+      expect(app.settings.name).toEqual('Foo');
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.fetchSettings fetch settings for preview and return Promise.", function(done) {
+    var app = k.App.getApp('1');
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app/settings');
+      return new Promise(function(resolve) { resolve({name:'Foo'}); });
+    });
+
+    app.fetchSettings({preview:true}).then(function(resp) {
+      expect(resp.name).toEqual('Foo');
+      expect(app.settings.name).toEqual('Foo');
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.fetchSettings may return error message when there is a problem.", function(done) {
+    var app = k.App.getApp('1');
+    expect(app.settings).toBeUndefined();
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      return k._reject({message:'failed'});
+    });
+
+    app.fetchSettings().then(function() {}, function(error) {
+      expect(error.message).toEqual('failed');
+      expect(app.settings).toBeUndefined();
+      done();
+    });
+  });
+
   it("aexlib.kintone.App.newRecord creates a new Record instance.", function() {
     expect(a.newRecord({foo:{value:'bar'}}).val('foo')).toEqual('bar');
   });
