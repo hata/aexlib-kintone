@@ -22,6 +22,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
+/**
+ * @main aexlib-kintone
+ * @namespace aexlib.kintone
+ */
 var aexlib = aexlib || {};
 
 (function(k) {
@@ -78,7 +82,7 @@ var aexlib = aexlib || {};
     };
 
 
-    /**
+    /*
      * When opt_labelAccess is set to true, then 'code' is
      * handled as 'label' value and then find a real field code
      * from fields. If there is no fields, then throw error
@@ -183,7 +187,7 @@ var aexlib = aexlib || {};
     };
 
 
-    /**
+    /*
      * This do not support multiple appId update in 1 txn.
      *
      * updateParams.url = '/k/v1/records'
@@ -239,6 +243,16 @@ var aexlib = aexlib || {};
         return new k.Record(app, opt_record);
     };
 
+    /**
+     * Hook kintone api to use this library in node environment.
+     * This is used to hook kintone.api to send REST request from
+     * nodejs environment.
+     *
+     * @static
+     * @method hookKintoneAPI
+     * @param api {String} kintone API name.
+     * @param callback {Function} a function to be called.
+     */
     k.hookKintoneAPI = function(api, callback) {
         k._HOOK_API_TABLE[api] = callback;
     };
@@ -246,9 +260,13 @@ var aexlib = aexlib || {};
     /**
      * Create a new App instance.
      *
-     * @params opt_options is additional options like lang and labelAccess flag.
+     * @class App
+     * @constructor
+     * @param appIdOrApp {Number|String|Object} Number or String is used for appId.
+     * Otherwise, app object which is get from kintone server should be set.
+     * @param opt_fields {Object} is fields like {properties:{code:{type: ...}}}
+     * @param opt_options is additional options like lang and labelAccess flag.
      *  e.g. opt_options = {lang:'default', labelAccess:false}
-     * @params opt_fields is like {properties:{code:{type: ...}}}
      */
     k.App = function(appIdOrApp, opt_fields, opt_options) {
         var options = k._isDefined(opt_options) ? opt_options : k._DEFAULT_APP_OPTIONS;
@@ -260,11 +278,49 @@ var aexlib = aexlib || {};
         this._labelAccess = k._isDefined(options.labelAccess) ? options.labelAccess : k._DEFAULT_APP_OPTIONS.labelAccess;
     };
 
+
+    /**
+     * Get App instance using arguments.
+     *
+     * <pre><code>
+     * var app = aexlib.kintone.App.getApp(); // app.appid is set from kintone.app.getId().
+     * app = aexlib.kintone.App.getApp('appId');
+     * </code></pre>
+     *
+     * @static
+     * @method getApp
+     * @param opt_appId {Number|String} Set appid to get a known App instance for a known appid.
+     * @param opt_fields {Object} Set fields which is get from /k/v1/app/fields REST API.
+     * @param opt_options {property} Set optional parameters. It is like {lang:'default'} .
+     * @return {App} App instance is returned.
+     */
     k.App.getApp = function(opt_appId, opt_fields, opt_options) {
         var appId = k._isDefined(opt_appId) ? opt_appId : k._kintoneFunc(k._KINTONE_APP_GETID)();
         return new k.App(appId, opt_fields, opt_options);
     };
 
+
+    /**
+     * Get App instances.
+     *
+     * <pre><code>
+     * App.fetchApps().then(function(apps) {
+     *   // apps is the instance of array.
+     * });
+     *
+     * App.fetchApps({name:'foo'}).then(function(apps) {
+     *   // apps is the instance of array which contains 'foo' in the name of the app.
+     * }, function(error) {
+     *   // error.message contains error message when there is a problem.
+     * });
+     * </code></pre>
+     *
+     * @method fetchApps
+     * @param opt_params {property} Set properties to fetch apps. ids, codes, and name can be used
+     * to set query params.
+     * @return {Promise} Promise is returned. When the request is failed, then reject is called.
+     * Otherwise, resolve(the array of App instance) is called.
+     */
     k.App.fetchApps = function(opt_params) {
         var toParamsHandler = function(startOffset, batchSize) {
             var params = { offset: startOffset, limit: batchSize };
@@ -295,12 +351,23 @@ var aexlib = aexlib || {};
         });
     };
 
+
+    /**
+     * Fetch /k/v1/app request.
+     *
+     * @method fetchApp
+     * @return {Promise} Promise.resolve(resp) is returned. And App.app is also set.
+     */
     k.App.prototype.fetchApp = function() {
         return k._fetch('/k/v1/app', 'GET', {id: this.appId, lang: this.lang}, this, 'app');
     };
 
     /**
-     * opt_params = {preview: true|false}
+     * Fetch /k/v1/app/settings request.
+     *
+     * @method fetchSettings
+     * @param opt_params {property} Set preview property flag. {preview: true|false}
+     * @return {Promise} Promise.resolve(resp) is returned. And also App.settings is set.
      */
     k.App.prototype.fetchSettings = function(opt_params) {
         var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/app/settings' : '/k/v1/app/settings';
@@ -308,7 +375,11 @@ var aexlib = aexlib || {};
     };
 
     /**
-     * opt_params = {preview: true|false}
+     * Fetch /k/v1/app/form/fields request.
+     *
+     * @method fetchFields
+     * @param opt_params {property} Set preview property flag. {preview: true|false}
+     * @return {Promise} Promise.resolve(resp) is returned. And also App.fields is set.
      */
     k.App.prototype.fetchFields = function(opt_params) {
         var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/app/form/fields' : '/k/v1/app/form/fields';
@@ -316,7 +387,11 @@ var aexlib = aexlib || {};
     };
 
     /**
-     * opt_params = {preview: true|false}
+     * Fetch /k/v1/app/form/layout request.
+     *
+     * @method fetchLayout
+     * @param opt_params {property} Set preview property flag. {preview: true|false}
+     * @return {Promise} Promise.resolve(resp) is returned. App.layout is also set.
      */
     k.App.prototype.fetchLayout = function(opt_params) {
         var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/app/form/layout' : '/k/v1/app/form/layout';
@@ -326,7 +401,9 @@ var aexlib = aexlib || {};
     /**
      * Fetch /k/v1/app/views request.
      *
-     * opt_params = {preview: true|false}
+     * @method fetchViews
+     * @param opt_params {property} This can set preview flag like {preview: true|false}
+     * @return {Promise} Promise.resolve(resp) is returned. App.views is also set.
      */
     k.App.prototype.fetchViews = function(opt_params) {
         var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/app/views' : '/k/v1/app/views';
@@ -336,7 +413,9 @@ var aexlib = aexlib || {};
     /**
      * Fetch /k/v1/form request.
      *
-     * opt_params = {preview: true|false}
+     * @method fetchForm
+     * @param opt_params {property} This can set preview flag like {preview: true|false}
+     * @return {Promise} Promise(resp) is returned. And App.form is also set.
      */
     k.App.prototype.fetchForm = function(opt_params) {
         var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/form' : '/k/v1/form';
@@ -344,31 +423,90 @@ var aexlib = aexlib || {};
     };
 
     /**
-     * @param opt_maxRecordNum is not set, then this value is 1. In this case,
-     * Promise returns a Record instance instead of an array of Records.
-     * If this value is 2 or more than 2, then Promise returns an array of Record
-     * instances.
+     * Fetch a record and then return Promise instance.
+     *
+     * <pre><code>
+     * app.first().then(function(record) {
+     *   // record is Record instance.
+     *   ...
+     * }), function(error) {
+     *   ...
+     * });
+     *
+     * app.first(3).then(function(records) {
+     *  // records is the instance of Array.
+     *   ...
+     * });
+     * </code></pre>
+     *
+     * @method first
+     * @param opt_maxRecordNum {Number} Set the max number of records to be return.
+     * If this value is not set(or set to 1), then this method only returns 1 Record.
+     * If the value is set more than 2, then return the array of Record.
+     * @return {Promise} This method returns Promise instance. When the request
+     * is successful, then resolve is called. Otherwise, reject is called.
      */
     k.App.prototype.first = function(opt_maxRecordNum) {
         return k._newQuery(this).first(opt_maxRecordNum);
     };
 
+
+    /**
+     * Create a new Query instance with fields.
+     * @method select
+     * @param opt_fieldCodes {String|Array}
+     * If this value is set, query result only contains these fields.
+     * @return {Query} Return a new Query instance.
+     */
     k.App.prototype.select = function(opt_fieldCodes) {
         return k._newQuery(this).select(opt_fieldCodes);
     };
 
+
+    /**
+     * Create a new Query instance with query operations.
+     * @method where
+     * @param opt_cond {Query.Condition|String} 
+     * @return {Query} Return a new Query instance.
+     */
     k.App.prototype.where = function(opt_cond) {
         return k._newQuery(this).where(opt_cond);
     };
 
+
+    /**
+     * Create a new Query with order value.
+     * @method order
+     * @param order {String} Set order fieldCode/order type.
+     * @return {Query} Return a new Query instance.
+     */
     k.App.prototype.order = function(order) {
         return k._newQuery(this).order(order);
     };
 
+
+    /**
+     * Create a new Record instance.
+     *
+     * @method newRecord
+     * @param opt_record {property} Initial kintone record value like event.record.
+     * @return {Record} Return a new Record instance.
+     */
     k.App.prototype.newRecord = function(opt_record) {
         return k._newRecord(this, opt_record);
     };
 
+    /**
+     * If label string is used to access field code instead of the code value,
+     * then set this parameter to true.
+     * If this value is set to true, user should make labels unique.
+     *
+     * @method labelAccess
+     * @param opt_labelAccess {boolean} Set this value if label access flag
+     * to true.
+     * @return {boolean} If label access is used, then return true.
+     * Otherwise, return false.
+     */
     k.App.prototype.labelAccess = function(opt_labelAccess) {
         if (k._isUndefined(opt_labelAccess)) {
             return this._labelAccess ? this._labelAccess : false;
@@ -377,6 +515,13 @@ var aexlib = aexlib || {};
         }
     };
 
+    /**
+     * Query object to build query text to fetch records.
+     *
+     * @class Query
+     * @constructor
+     * @param app {App} Set App instance for this Query.
+     */
     k.Query = function(app) {
       this.app = app;
       this._qParams = [];
@@ -397,8 +542,12 @@ var aexlib = aexlib || {};
     k.Query.THIS_YEAR  = new k.Query.Constant('THIS_YEAR()');
 
     /**
-     * Get a first instance.
-     * @return Promise. If it succeeded, then return record. Otherwise, undefined.
+     * Get first Record instance(s).
+     *
+     * @method first
+     * @param opt_maxRecordNum {Number} This option is used to return several Record
+     * instances. The default number of Records is 1.
+     * @return {Promise}. If it succeeded, then return record. Otherwise, undefined.
      * If kintone returns an error response, then reject is called by Promise.
      */
     k.Query.prototype.first = function(opt_maxRecordNum) {
@@ -414,6 +563,20 @@ var aexlib = aexlib || {};
         });
     };
 
+
+    /**
+     * Fetch Records.
+     *
+     * <pre><code>
+     * var q = app.select();
+     * q.where(q.equal('fieldFoo', 10).and().(q.lessThan('fieldBar', 20))).find().then(function(records) {
+     * ...
+     * });
+     * </code></pre>
+     *
+     * @method find
+     * @return {Promise} Return Promise.resolve(Array of Record) .
+     */
     k.Query.prototype.find = function() {
         var self = this;
         var toParamsHandler = function(offset, batchSize) {
@@ -441,21 +604,29 @@ var aexlib = aexlib || {};
     /**
      * Set fields parameter to query records.
      * 
+     * <pre><code>
+     * q.select()
+     *  // or
      * q.select(['code1', 'code2']) 
-     * or
+     *  // or
      * q.select('code1')
+     * </code></pre>
+     *
+     * @method select
+     * @param opt_fieldCodes
+     * @return {Query} Query instance(this value) is returned.
      */
-    k.Query.prototype.select = function(fieldCodes) {
+    k.Query.prototype.select = function(opt_fieldCodes) {
         var self = this;
 
-        if (k._isDefined(fieldCodes)) {
+        if (k._isDefined(opt_fieldCodes)) {
             this._queryFields = this._queryFields || [];
 
-            if (Array.isArray(fieldCodes)) {
-                fieldCodes = fieldCodes.map(function(code) { return self._toCode(code); });
-                this._queryFields = this._queryFields.concat(fieldCodes);
+            if (Array.isArray(opt_fieldCodes)) {
+                opt_fieldCodes = opt_fieldCodes.map(function(code) { return self._toCode(code); });
+                this._queryFields = this._queryFields.concat(opt_fieldCodes);
             } else {
-                this._queryFields.push(this._toCode(fieldCodes));
+                this._queryFields.push(this._toCode(opt_fieldCodes));
             }
         }
 
@@ -464,9 +635,17 @@ var aexlib = aexlib || {};
 
 
     /**
+     * Set Query.Condition instance to build a query.
+     *
+     * <pre><code>
      * q.where('code = "foo"') ...
      * q.where(q.equal('code', 'foo').and(). ...)
      * q.where(q.cond(q.equal(a,b).lessThan(c,d)).and(q.equal(...)))
+     * </code></pre>
+     *
+     * @method where
+     * @param cond {String|Query.Condition}
+     * @return {Query}
      */
     k.Query.prototype.where = function(cond) {
         if (k._isString(cond)) {
@@ -483,6 +662,12 @@ var aexlib = aexlib || {};
     };
 
 
+    /**
+     * Add order field and sort(asc|desc) text.
+     * @method order
+     * @param orderValue {String} Set order text like 'fieldCode asc'.
+     * @return {Query}
+     */
     k.Query.prototype.order = function(orderValue) {
         if (this.app && this.app.labelAccess()) {
             throw new Error(k._CANNOT_USE_STRING_LABEL_ACCESS);
@@ -498,64 +683,192 @@ var aexlib = aexlib || {};
         return this;
     };
 
+
+    /**
+     * Add order field for 'asc'
+     * @method orderAsc
+     * @param fieldCode {String} Set field code.
+     * @return {Query} Return 'this' instance.
+     */
     k.Query.prototype.orderAsc = function(fieldCode) {
         return this._addOrder(this._toCode(fieldCode) + ' asc');
     };
 
+    /**
+     * Add order field for 'desc'
+     * @method orderDesc
+     * @param fieldCode {String} Set field code.
+     * @return {Query} Return 'this' instance.
+     */
     k.Query.prototype.orderDesc = function(fieldCode) {
         return this._addOrder(this._toCode(fieldCode) + ' desc');
     };
 
+// TODO: This should be able to accept Date instance for DATE and DATETIME.
+
+    /**
+     * Add query operation for '='
+     * @method equal
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition instance.
+     */
     k.Query.prototype.equal = function(fieldCode, value) {
         return new k.Query.Condition(this).equal(fieldCode, value);
     };
 
+    /**
+     * Add query operation for '!='
+     * @method notEqual
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition instance.
+     */
     k.Query.prototype.notEqual = function(fieldCode, value) {
         return new k.Query.Condition(this).notEqual(fieldCode, value);
     };
 
+    /**
+     * Add query operation for '>'
+     * @method greaterThan
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition instance.
+     */
     k.Query.prototype.greaterThan = function(fieldCode, value) {
         return new k.Query.Condition(this).greaterThan(fieldCode, value);
     };
 
+    /**
+     * Add query operation for '<'
+     * @method lessThan
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition instance.
+     */
     k.Query.prototype.lessThan = function(fieldCode, value) {
         return new k.Query.Condition(this).lessThan(fieldCode, value);
     };
 
+    /**
+     * Add query operation for '>='
+     * @method greaterEqual
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition instance.
+     */
     k.Query.prototype.greaterEqual = function(fieldCode, value) {
         return new k.Query.Condition(this).greaterEqual(fieldCode, value);
     };
 
+    /**
+     * Add query operation for '<='
+     * @method lessEqual
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition instance.
+     */
     k.Query.prototype.lessEqual = function(fieldCode, value) {
         return new k.Query.Condition(this).lessEqual(fieldCode, value);
     };
 
+    /**
+     * Add query operation for 'in'
+     * @method inList
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition instance.
+     */
     k.Query.prototype.inList = function(fieldCode, value) {
         return new k.Query.Condition(this).inList(fieldCode, value);
     };
 
+    /**
+     * Add query operation for 'not in'
+     * @method notInList
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition instance.
+     */
     k.Query.prototype.notInList = function(fieldCode, value) {
         return new k.Query.Condition(this).notInList(fieldCode, value);
     };
 
+    /**
+     * Add query operation for 'like'
+     * @method like
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition instance.
+     */
     k.Query.prototype.like = function(fieldCode, value) {
         return new k.Query.Condition(this).like(fieldCode, value);
     };
 
+    /**
+     * Add query operation for 'not like'
+     * @method notLike
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition instance.
+     */
     k.Query.prototype.notLike = function(fieldCode, value) {
         return new k.Query.Condition(this).notLike(fieldCode, value);
     };
 
+    /**
+     * Wrap Query.Condition instance to use bracket.
+     *
+     * <pre><code>
+     * var q = app.select();
+     * var cond = q.equal('foo', 'hoge').and().equal('bar','piyo');
+     * var cond2 = q.greaterThan('foo', 1).and().lessThan('foo', 10);
+     * q.cond(cond).and(cond2);
+     * // Create query string like this bracket:
+     * //  (foo = "hoge" and bar = "piyo") and (foo > 1 and foo < 10)
+     * </code></pre>
+     *
+     * @method cond
+     * @param conds {Query.Condition}
+     * @return {Query.Condition} Return Query.Condition instance.
+     */
     k.Query.prototype.cond = function(conds) {
         return new k.Query.Condition(this, conds);
     };
 
 
+    /**
+     * Set the maximum number of records.
+     * This is NOT the same as query's limit.
+     *
+     * @method limit
+     * @param numLimit {Number} The maximum number of records for a query.
+     * If this value is greater than 100, fetch records several times.
+     * @return {Query} Return Query(this) instance.
+     */
     k.Query.prototype.limit = function(numLimit) {
         this._limit = numLimit;
         return this;
     };
 
+
+    /**
+     * Set offset.
+     *
+     * @method offset
+     * @param numOffset {Number} Set offset.
+     * @return {Query} Return Query(this) instance.
+     */
     k.Query.prototype.offset = function(numOffset) {
         this._offset = numOffset;
         return this;
@@ -584,6 +897,18 @@ var aexlib = aexlib || {};
             code;
     };
 
+
+    /**
+     * Query.Condition is used to build query statement to fetch Records.
+     * Normally, this constructor is not used directly.
+     *
+     * @class Query.Condition
+     * @constructor
+     * @param query {Query} is a Query instance for this object.
+     * @param opt_cond {String|Query.Condition} This is an optional parameter.
+     * If it is required to group(using a bracket), then set Query.Condition.
+     * Or, just set a condition as a String instance.
+     */
     k.Query.Condition = function(query, opt_cond) {
         this._query = query;
         this._qParams = [];
@@ -594,56 +919,163 @@ var aexlib = aexlib || {};
         }
     };
 
+
+    /**
+     * Add query operation for '='
+     * @method equal
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition(this) instance.
+     */
     k.Query.Condition.prototype.equal = function(fieldCode, value) {
         return this._addOperatorQuery(fieldCode, '=', value);
     };
 
+
+    /**
+     * Add query operation for '!='
+     * @method notEqual
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition(this) instance.
+     */
     k.Query.Condition.prototype.notEqual = function(fieldCode, value) {
         return this._addOperatorQuery(fieldCode, '!=', value);
     };
 
+
+    /**
+     * Add query operation for '>'
+     * @method greaterThan
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition(this) instance.
+     */
     k.Query.Condition.prototype.greaterThan = function(fieldCode, value) {
         return this._addOperatorQuery(fieldCode, '>', value);
     };
 
+
+    /**
+     * Add query operation for '<'
+     * @method lessThan
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition(this) instance.
+     */
     k.Query.Condition.prototype.lessThan = function(fieldCode, value) {
         return this._addOperatorQuery(fieldCode, '<', value);
     };
 
+
+    /**
+     * Add query operation for '>='
+     * @method greaterEqual
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition(this) instance.
+     */
     k.Query.Condition.prototype.greaterEqual = function(fieldCode, value) {
         return this._addOperatorQuery(fieldCode, '>=', value);
     };
 
+
+    /**
+     * Add query operation for '<='
+     * @method lessEqual
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition(this) instance.
+     */
     k.Query.Condition.prototype.lessEqual = function(fieldCode, value) {
         return this._addOperatorQuery(fieldCode, '<=', value);
     };
 
+
+    /**
+     * Add query operation for 'in'
+     * @method inList
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition(this) instance.
+     */
     k.Query.Condition.prototype.inList = function(fieldCode, values) {
         var code = this._query._toCode(fieldCode);
         return this._appendQuery(code + ' in (' + k.Query.Condition._toListString(code, values) + ')');
     };
 
+
+    /**
+     * Add query operation for 'not in'
+     * @method notInList
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition(this) instance.
+     */
     k.Query.Condition.prototype.notInList = function(fieldCode, values) {
         var code = this._query._toCode(fieldCode);
         return this._appendQuery(code + ' not in (' + k.Query.Condition._toListString(code, values) + ')');
     };
 
+    /**
+     * Add query operation for 'like'
+     * @method like
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition(this) instance.
+     */
     k.Query.Condition.prototype.like = function(fieldCode, value) {
         return this._addOperatorQuery(fieldCode, 'like', value);
     };
 
+
+    /**
+     * Add query operation for 'not like'
+     * @method notLike
+     * @param fieldCode {String} Set field code.
+     * @param value {Number|String|Array|Record}
+     * If Record is set, then value.val(fieldCode) is used as a value.
+     * @return {Query.Condition} Return Query.Condition(this) instance.
+     */
     k.Query.Condition.prototype.notLike = function(fieldCode, value) {
         return this._addOperatorQuery(fieldCode, 'not like', value);
     };
 
-    k.Query.Condition.prototype.or = function(value) {
+
+    /**
+     * Add query operation for 'or'.
+     * If opt_value is set, then add 'or ( ' + value + ' )'.
+     * @method or
+     * @param opt_value {String|Query.Condition} If this value is set,
+     * then brackets are added to value like '(' + value + ')'.
+     * @return {Query.Condition} Return Query.Condition(this) instance.
+     */
+    k.Query.Condition.prototype.or = function(opt_value) {
         this._qParams.push('or');
-        if (k._isDefined(value)) {
-            this._qParams.push(new k.Query.Condition(this._query, value).toString());
+        if (k._isDefined(opt_value)) {
+            this._qParams.push(new k.Query.Condition(this._query, opt_value).toString());
         }
         return this;
     };
 
+
+    /**
+     * Add query operation for 'and'.
+     * If opt_value is set, then add 'and ( ' + value + ' )'.
+     * @method and
+     * @param opt_value {String|Query.Condition} If this value is set,
+     * then brackets are added to value like '(' + value + ')'.
+     * @return {Query.Condition} Return Query.Condition(this) instance.
+     */
     k.Query.Condition.prototype.and = function(value) {
         this._qParams.push('and');
         if (k._isDefined(value)) {
@@ -697,6 +1129,12 @@ var aexlib = aexlib || {};
 
     /**
      * Record instance.
+     *
+     * @class Record
+     * @constructor
+     * @param app {App} Set App instance for this record.
+     * @param record {Object} Set kintone record object like event.record. Or,
+     * set {} for a new record.
      */
     k.Record = function(app, record) {
         this.app = app;
@@ -707,8 +1145,18 @@ var aexlib = aexlib || {};
 // TODO: buik update should also be required.
 
     /**
+     * Create or Update records at the same time. If there are more than 100 records,
+     * this update may be run several times. In this case, records may be partially
+     * updated.
+     *
      * This only support for the same request types like update(PUT) or create(POST).
      * records should not have both update and create records at the same time.
+     *
+     * @method saveAll
+     * @static
+     * @param records {Array of Record}
+     * @param opt_validateRevisions {boolean}
+     * @return {Promise}
      */
     k.Record.saveAll = function(records, opt_validateRevisions) {
        var i;
@@ -740,14 +1188,41 @@ var aexlib = aexlib || {};
        }
     };
 
+
+    /**
+     * Create records.
+     *
+     * @method createAll
+     * @static
+     * @param records {Array of Record} All Records should be new Records.
+     * @return {Promise}
+     */
     k.Record.createAll = function(records, opt_validateRevisions) {
         return k._recursiveUpdate(k.Record._getCreateParams(), records, opt_validateRevisions);
     };
 
+    /**
+     * Update all records.
+     *
+     * @method updateAll
+     * @static
+     * @param records {Array of Record} All Records should be existing Records.
+     * @param opt_validateRevisions {boolean} If true is set, then validate revisions.
+     * @return {Promise}
+     */
     k.Record.updateAll = function(records, opt_validateRevisions) {
         return k._recursiveUpdate(k.Record._getUpdateParams(), records, opt_validateRevisions);
     };
 
+    /**
+     * Remove all records.
+     *
+     * @method removeAll
+     * @static
+     * @param records {Array of Record} All Records should be existing Records.
+     * @param opt_validateRevisions {boolean} If true is set, then validate revisions.
+     * @return {Promise}
+     */
     k.Record.removeAll = function(records, opt_validateRevisions) {
         return k._recursiveUpdate(k.Record._getRemoveParams(), records, opt_validateRevisions);
     };
@@ -984,6 +1459,40 @@ var aexlib = aexlib || {};
             k._DEFAULT_VALIDATE_REVISION;
     };
 
+
+    /**
+     * Get a value from Record.record property and then return it if
+     * opt_newValue is not set.
+     * Set a new value to Record property when opt_newValue is set.
+     * In this case, old value is returned.
+     *
+     * <pre><code>
+     * app.select().first().then(function(record) {
+     *   var value = record.val('fieldCode');
+     *   record.val('fieldCode', 10); // If fieldCode type is Number.
+     *   ...
+     * });
+     * </code></pre>
+     *
+     * When getting a value:
+     *
+     * If one of NUMBER, __ID__, and __REVISION__ is the field type, then
+     * return Number instance.
+     * If one of DATE, DATETIME, CREATED_TIME, and UPDATED_TIME is the
+     * field type, then return Date instance.
+     * Other types are return String or Array of String.
+     *
+     * When setting a value:
+     * DATE and DATETIME accept Date instance.
+     * NUMBER accept Number instance.
+     *
+     * @method val
+     * @param code {String} code is fieldCode or label if App.labelAccess is true.
+     * @param opt_newValue {Number|Date|String|Array} is a new value when
+     * updating a value.
+     * @return {Number|Date|String|Array} Returned object type depends on
+     * field type.
+     */
     k.Record.prototype.val = function(code, opt_newValue) {
         code = this.app && this.app.labelAccess() ?
             k._toCode(this.app.fields, code, this.app.labelAccess()) :
@@ -994,10 +1503,24 @@ var aexlib = aexlib || {};
             this._setValue(code, opt_newValue);
     };
 
+    /**
+     * Get or Set recordId.
+     *
+     * @method recordId
+     * @param opt_newRecord {Number} Set a new recordId if it is set.
+     * @return {Number} Return a current recordId.
+     */
     k.Record.prototype.recordId = function(opt_newRecordId) {
         return this._internalNumberVal(k.RECORD_ID_CODE, opt_newRecordId);
     };
 
+    /**
+     * Get or Set revision.
+     *
+     * @method revision
+     * @param opt_newRevision {Number} Set a new revision if it is set.
+     * @return {Number} Return a current revision.
+     */
     k.Record.prototype.revision = function(opt_newRevision) {
         return this._internalNumberVal(k.REVISION_CODE, opt_newRevision);
     };
@@ -1018,6 +1541,12 @@ var aexlib = aexlib || {};
         }
     };
 
+    /**
+     * Get the flag of updated record or not.
+     * @method isUpdated
+     * @return {boolean} Return true if this Record is updated.
+     * Otherwise, return false.
+     */
     k.Record.prototype.isUpdated = function() {
         return k._isDefined(this.updated);
     };
@@ -1027,7 +1556,9 @@ var aexlib = aexlib || {};
      * If there is a recordId, then update the record. Otherwise,
      * a new record will be created.
      *
-     * @return a Promise instance.
+     * @method save
+     * @return {Promise} Promise.resolve(resp) is returned when the request
+     * is succeeded. If error is returned, then Promise.reject(error) is called.
      */
     k.Record.prototype.save = function(opt_obj, opt_prop, opt_validateRevision) {
         var obj = k._isUndefined(opt_obj) ? undefined : opt_obj;
@@ -1060,6 +1591,14 @@ var aexlib = aexlib || {};
         }
     };
 
+    /**
+     * Delete the record of this instance.
+     *
+     * @method remove
+     * @param opt_validateRevision {boolean} Set true if revision should be validated.
+     * @return {Promise} Return Promise.resolve(resp) if it succeed to delete a request.
+     * If it failed, then Promise.reject(error) is returned.
+     */
     k.Record.prototype.remove = function(opt_validateRevision) {
         var rid = this.recordId();
         var params;

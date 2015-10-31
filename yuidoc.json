@@ -1,0 +1,12 @@
+{
+  "name": "aexlib-kintone",
+  "description": "JavaScript wrapper library for kintone REST API",
+  "version": "0.0.1",
+  "url": "https://github.com/hata/aexlib-kintone",
+  "options": {
+    "paths": [
+      "./js/aexlib-kintone.js"
+    ],
+    "outdir": "./doc/api"
+  }
+}
