@@ -566,6 +566,58 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.App.fetchForm fetch form info and return Promise.", function(done) {
+    var result = {properties:[{code:'foo'}]};
+    var app = k.App.getApp('1');
+    expect(app.form).toBeUndefined();
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/form');
+      expect(request).toEqual('GET');
+      expect(params).toEqual({app:'1'});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    app.fetchForm().then(function(resp) {
+      expect(resp.properties).toEqual(result.properties);
+      expect(app.form).toBeDefined();
+      expect(app.form.properties[0].code).toEqual('foo');
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.fetchForm fetch form info for preview and return Promise.", function(done) {
+    var result = {properties:[{code:'foo'}]};
+    var app = k.App.getApp('1');
+    expect(app.form).toBeUndefined();
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/form');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    app.fetchForm({preview:true}).then(function(resp) {
+      expect(resp.properties).toEqual(result.properties);
+      expect(app.form.properties[0].code).toEqual('foo');
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.fetchForm may return error message when there is a problem.", function(done) {
+    var app = k.App.getApp('1');
+    expect(app.layout).toBeUndefined();
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      return k._reject({message:'failed'});
+    });
+
+    app.fetchForm().then(function() {}, function(error) {
+      expect(error.message).toEqual('failed');
+      expect(app.form).toBeUndefined();
+      done();
+    });
+  });
+
   it("aexlib.kintone.App.newRecord creates a new Record instance.", function() {
     expect(a.newRecord({foo:{value:'bar'}}).val('foo')).toEqual('bar');
   });

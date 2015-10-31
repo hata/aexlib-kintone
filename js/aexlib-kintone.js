@@ -334,6 +334,16 @@ var aexlib = aexlib || {};
     };
 
     /**
+     * Fetch /k/v1/form request.
+     *
+     * opt_params = {preview: true|false}
+     */
+    k.App.prototype.fetchForm = function(opt_params) {
+        var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/form' : '/k/v1/form';
+        return k._fetch(url, 'GET', {app: this.appId}, this, 'form');
+    };
+
+    /**
      * @param opt_maxRecordNum is not set, then this value is 1. In this case,
      * Promise returns a Record instance instead of an array of Records.
      * If this value is 2 or more than 2, then Promise returns an array of Record
