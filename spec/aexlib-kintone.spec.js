@@ -1899,5 +1899,189 @@ describe("aexlib.kintone tests", function() {
     expect(k.Record._convertFromDateTime('2012-01-11T11:30:00Z')).toEqual('2012-01-11T11:30:00Z');
   });
 
+  it("aexlib.kintone.App.updateSettings can update settings from the argument.", function(done) {
+    var newSettings = {app:'id', revision:'2'};
+    var result = {};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/app/settings');
+      expect(request).toEqual('PUT');
+      expect(params).toEqual({app:'1'});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.updateSettings(newSettings).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.updateSettings can update settings from this.settings.", function(done) {
+    var newSettings = {app:'id', value:'foo'};
+    var result = {};
+
+    a.settings = newSettings;
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/app/settings');
+      expect(request).toEqual('PUT');
+      expect(params).toEqual({app:'1', value:'foo'});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.updateSettings().then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.updateSettings can update settings from this.settings.", function(done) {
+    var newSettings = {value:'foo', revision:'2'};
+    var result = {revision:'3'};
+
+    a.settings = newSettings;
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/app/settings');
+      expect(request).toEqual('PUT');
+      expect(params).toEqual({app:'1', value:'foo'});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.updateSettings().then(function(resp) {
+      expect(resp).toEqual(result);
+      expect(a.settings.app).toBeUndefined();
+      expect(a.settings.revision).toEqual('3');
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.updateSettings return Promise.reject when failing the request.", function(done) {
+    a.settings = {value:'foo', revision:'2'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(params).toEqual({app:'1', value:'foo'});
+      return new Promise(function(resolve, reject) { reject({message:'failed'}); });
+    });
+
+    a.updateSettings().then(function() {}, function(error) {
+      expect(error.message).toBeDefined();
+      expect(a.settings.app).toBeUndefined();
+      expect(a.settings.revision).toEqual('2');
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.updateSettings return Promise.reject and no revision doesn't touch settings.", function(done) {
+    a.settings = {value:'foo'};
+      
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(params).toEqual({app:'1', value:'foo'});
+      return new Promise(function(resolve, reject) { reject({message:'failed'}); });
+    }); 
+
+    a.updateSettings().then(function() {}, function(error) {
+      expect(error.message).toEqual('failed');
+      expect(a.settings.app).toBeUndefined();
+      expect(a.settings.revision).toBeUndefined();
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.updateSettings returns Promise.reject(error) for undefined settings.", function(done) {
+    a.updateSettings().then(function() {}, function(error) {
+      expect(error.message).toBeDefined();
+      done();
+    });
+  });
+/*
+  it("aexlib.kintone.App.saveFields can update fields from the argument.", function(done) {
+    var newFields = {app:'id', revision:'2'};
+    var result = {foo:'bar'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/app/form/fields');
+      expect(request).toEqual('PUT');
+      expect(params).toEqual({app:'1'});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.saveFields(newFields).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+*/
+
+  it("aexlib.kintone.App.updateLayout can update layout from the argument.", function(done) {
+    var newLayout = {app:'id', revision:'2'};
+    var result = {};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/app/form/layout');
+      expect(request).toEqual('PUT');
+      expect(params).toEqual({app:'1'});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.updateLayout(newLayout).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.updateViews can update views from the argument.", function(done) {
+    var newViews = {app:'id', revision:'2'};
+    var result = {foo:'bar'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/app/views');
+      expect(request).toEqual('PUT');
+      expect(params).toEqual({app:'1'});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.updateViews(newViews).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.createApp creates a new app in a test(preview) environment", function(done) {
+    var appName = 'foo';
+    var newAppId = '2';
+    var result = {app:'2', revision:'1'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app');
+      expect(request).toEqual('POST');
+      expect(params).toEqual({name:'foo'});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    k.App.createApp(appName).then(function(newApp) {
+      expect(newApp.appId).toEqual(newAppId);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.createApp creates a new app with space and thread", function(done) {
+    var appName = 'foo';
+    var space = 5;
+    var thread = 10;
+    var newAppId = '2';
+    var result = {app:'2', revision:'1'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(params).toEqual({name:'foo', space:5, thread:10});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    k.App.createApp(appName, space, thread).then(function(newApp) {
+      expect(newApp.appId).toEqual(newAppId);
+      done();
+    });
+  });
+
 });
 

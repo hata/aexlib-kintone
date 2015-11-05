@@ -42,6 +42,7 @@ var aexlib = aexlib || {};
     k._NO_RECORD_FOUND = 'No record found';
     k._NO_LABEL_FOUND = 'No label found';
     k._NO_FIELDS_FOUND = 'No fields found. Use fetchFields to get it.';
+    k._NO_APP_PROPERTY_FOUND = 'No App property or argument found. property name:';
     k._UNKNOWN_UPDATE_REQUEST_FOUND_ERROR = 'Unknown update request found.';
     k._CANNOT_USE_BOTH_POST_AND_PUT_REQUESTS = 'Cannot use both POST and PUT requests.';
     k._CANNOT_USE_STRING_LABEL_ACCESS = 'Cannot use string when label access is set.';
@@ -270,9 +271,8 @@ var aexlib = aexlib || {};
      */
     k.App = function(appIdOrApp, opt_fields, opt_options) {
         var options = k._isDefined(opt_options) ? opt_options : k._DEFAULT_APP_OPTIONS;
-
-        this.appId = appIdOrApp && appIdOrApp.appId ? appIdOrApp.appId : appIdOrApp;
-        this.app =   appIdOrApp && appIdOrApp.appId ? appIdOrApp       : undefined;
+        this.appId = (appIdOrApp && appIdOrApp.appId) ? appIdOrApp.appId : appIdOrApp;
+        this.app =   (appIdOrApp && appIdOrApp.appId) ? appIdOrApp       : undefined;
         this.fields = opt_fields;
         this.lang = k._isDefined(options.lang) ? options.lang : k._DEFAULT_APP_OPTIONS.lang;
         this._labelAccess = k._isDefined(options.labelAccess) ? options.labelAccess : k._DEFAULT_APP_OPTIONS.labelAccess;
@@ -351,6 +351,31 @@ var aexlib = aexlib || {};
         });
     };
 
+    /**
+     * Create a new app at a test environment.
+     *
+     * @method createApp
+     * @static
+     * @param name {String} Set a new app name.
+     * @param opt_space {Number} Set a space value if needed.
+     * @param opt_thread {Number} Set a thread value if needed.
+     * @return {Promise} Promise.resolve(resp) is returned for success.
+     */
+    k.App.createApp = function(name, opt_space, opt_thread) {
+        var params = {name:name};
+        if (k._isDefined(opt_space)) {
+            params.space = opt_space;
+        }
+        if (k._isDefined(opt_thread)) {
+            params.thread = opt_thread;
+        }
+
+        // Response is like {app:"23", revision:"1"}
+        return k._fetch('/k/v1/preview/app', 'POST', params).then(function(resp) {
+            return k.App.getApp(resp.app);
+        });
+    };
+
 
     /**
      * Fetch /k/v1/app request.
@@ -374,6 +399,21 @@ var aexlib = aexlib || {};
         return k._fetch(url, 'GET', {app: this.appId, lang: this.lang}, this, 'settings');
     };
 
+
+    /**
+     * TODO: It is better to check the behavior of this method.
+     * Update /k/v1/app/settings using the argument's settings or this.settings.
+     * If there is revision in the new settings, the property is deleted.
+     * app property is added or updated with this.appId.
+     * @method updateSettings
+     * @param opt_newSettings {Object} This parameter can set to update settings for this app.
+     * If this value is not set, then this.settings is used to update the app settings.
+     * @return {Promise} Return result.
+     */
+    k.App.prototype.updateSettings = function(opt_newSettings) {
+        return this._updateConfig('/k/v1/app/settings', 'settings', opt_newSettings);
+    };
+
     /**
      * Fetch /k/v1/app/form/fields request.
      *
@@ -385,6 +425,20 @@ var aexlib = aexlib || {};
         var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/app/form/fields' : '/k/v1/app/form/fields';
         return k._fetch(url, 'GET', {app: this.appId, lang: this.lang}, this, 'fields');
     };
+
+    /**
+     * Update /k/v1/app/form/fields request.
+     * @method saveFields
+     * @param opt_newFields {property} Set a new fields config.
+     * @return {Promise} Promise.resolve(resp) is returned when it is succeeded.
+     */
+/*
+    k.App.prototype.saveFields = function(opt_newFields) {
+
+        // TODO: This is incorrect. This should split the data to build-in and non-build-in fields.
+        return this._updateConfig('/k/v1/app/form/fields', 'fields', opt_newFields);
+    };
+*/
 
     /**
      * Fetch /k/v1/app/form/layout request.
@@ -399,6 +453,16 @@ var aexlib = aexlib || {};
     };
 
     /**
+     * Update /k/v1/app/form/layout request.
+     * @method updateLayout
+     * @param opt_newLayout {property} Set a new layout config.
+     * @return {Promise} Promise.resolve(resp) is returned when it is succeeded.
+     */
+    k.App.prototype.updateLayout = function(opt_newLayout) {
+        return this._updateConfig('/k/v1/app/form/layout', 'layout', opt_newLayout);
+    };
+
+    /**
      * Fetch /k/v1/app/views request.
      *
      * @method fetchViews
@@ -408,6 +472,16 @@ var aexlib = aexlib || {};
     k.App.prototype.fetchViews = function(opt_params) {
         var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/app/views' : '/k/v1/app/views';
         return k._fetch(url, 'GET', {app: this.appId, lang: this.lang}, this, 'views');
+    };
+
+    /**
+     * Update '/k/v1/app/views' request.
+     * @method updateViews
+     * @param opt_newViews {property} Set a new views config.
+     * @return {Promise} Promise.resolve(resp) is returned when it is succeeded.
+     */
+    k.App.prototype.updateViews = function(opt_newViews) {
+        return this._updateConfig('/k/v1/app/views', 'views', opt_newViews);
     };
 
     /**
@@ -513,6 +587,41 @@ var aexlib = aexlib || {};
         } else {
             this._labelAccess = opt_labelAccess;
         }
+    };
+
+    k.App.prototype.copyApp = function(opt_newApp) {
+    };
+
+    k.App.prototype._updateConfig = function(url, propName, opt_newConfig) {
+        // TODO: this.settings should be copied.
+        var self = this;
+        var newConfig = opt_newConfig ? opt_newConfig : this[propName];
+        var oldRevision;
+        if (k._isUndefined(newConfig)) {
+            return k._reject({message:k._NO_APP_PROPERTY_FOUND + propName});
+        }
+
+        if (k._isDefined(newConfig.revision)) {
+            oldRevision = newConfig.revision;
+            delete newConfig.revision;
+        }
+
+        newConfig.app = this.appId;
+
+        // TODO: When a new configuration is set, then set a new revision from the response.
+        // In this case, if there is no config is set(eg. this.settings is undefined/null),
+        // then it should also be updated.
+        return k._fetch(url, 'PUT', newConfig).then(function(resp) {
+            newConfig.revision = resp.revision;
+            delete newConfig.app;
+            return resp;
+        }, function(error) {
+            if (k._isDefined(oldRevision)) {
+                newConfig.revision = oldRevision;
+            }
+            delete newConfig.app;
+            return k._reject(error);
+        });
     };
 
     /**
@@ -1638,7 +1747,6 @@ var aexlib = aexlib || {};
 
         return oldValue;
     };
-
 
     // For node.js, App, Query, and Record are exported objects.
     try {
