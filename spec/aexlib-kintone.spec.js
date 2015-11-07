@@ -2083,5 +2083,174 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.App._isIgnoreField returns true when field is built-in and cannot be created/updated/deleted.", function() {
+    expect(k.App._isIgnoreField({type:'STATUS'})).toEqual(true);
+    expect(k.App._isIgnoreField({type:'STATUS_ASSIGNEE'})).toEqual(true);
+    expect(k.App._isIgnoreField({type:'CATEGORY'})).toEqual(true);
+    expect(k.App._isIgnoreField({type:'CREATOR'})).toEqual(false);
+  });
+
+  it("aexlib.kintone.App._isBuiltInField returns true when field is built-in field type.", function() {
+    expect(k.App._isBuiltInField({type:'STATUS'})).toEqual(true);
+    expect(k.App._isBuiltInField({type:'STATUS_ASSIGNEE'})).toEqual(true);
+    expect(k.App._isBuiltInField({type:'CATEGORY'})).toEqual(true);
+    expect(k.App._isBuiltInField({type:'CREATOR'})).toEqual(true);
+    expect(k.App._isBuiltInField({type:'MODIFIER'})).toEqual(true);
+    expect(k.App._isBuiltInField({type:'CREATED_TIME'})).toEqual(true);
+    expect(k.App._isBuiltInField({type:'UPDATED_TIME'})).toEqual(true);
+    expect(k.App._isBuiltInField({type:'RECORD_NUMBER'})).toEqual(true);
+    expect(k.App._isBuiltInField({type:'SINGLE_LINE_TEXT'})).toEqual(false);
+  });
+
+  it("aexlib.kintone.App.createFields adds fields.", function(done) {
+    var fields = {properties:{
+      foo:{code:'foo', type:'SINGLE_LINE_TEXT'},
+      builtIn: {code:'builtIn', type:'CREATOR'},
+      ignore: {code:'ignore', type:'STATUS'}
+    }};
+    var result = {revision:'3'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app/form/fields');
+      expect(request).toEqual('POST');
+      expect(params).toEqual({app:'1', properties:{foo:{code:'foo', type:'SINGLE_LINE_TEXT'}}});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.createFields(fields).then(function(resp) {
+      expect(resp).toEqual({revision:'3'});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.updateFields update fields.", function(done) {
+    var fields = {properties:{
+      foo:{code:'foo', type:'SINGLE_LINE_TEXT'},
+      builtIn: {code:'builtIn', type:'CREATOR'},
+      ignore: {code:'ignore', type:'STATUS'}
+    }};
+    var result = {revision:'3'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app/form/fields');
+      expect(request).toEqual('PUT');
+      expect(params).toEqual({app:'1', properties:{
+          foo:{code:'foo', type:'SINGLE_LINE_TEXT'},
+          builtIn: {code:'builtIn', type:'CREATOR'}
+      }});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.updateFields(fields, {builtInFields:true, userFields:true}).then(function(resp) {
+      expect(resp).toEqual({revision:'3'});
+      done();
+    });
+  });
+
+
+  it("aexlib.kintone.App.updateFields update built-in fields when builtInFields is true.", function(done) {
+    var fields = {properties:{
+      foo:{code:'foo', type:'SINGLE_LINE_TEXT'},
+      builtIn: {code:'builtIn', type:'CREATOR'},
+      ignore: {code:'ignore', type:'STATUS'}
+    }};
+    var result = {revision:'3'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app/form/fields');
+      expect(request).toEqual('PUT');
+      expect(params).toEqual({app:'1', properties:{
+          builtIn: {code:'builtIn', type:'CREATOR'}
+      }});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.updateFields(fields, {builtInFields:true}).then(function(resp) {
+      expect(resp).toEqual({revision:'3'});
+      done();
+    });
+  });
+
+
+  it("aexlib.kintone.App.updateFields update user fields when userFields is true.", function(done) {
+    var fields = {properties:{
+      foo:{code:'foo', type:'SINGLE_LINE_TEXT'},
+      builtIn: {code:'builtIn', type:'CREATOR'},
+      ignore: {code:'ignore', type:'STATUS'}
+    }};
+    var result = {revision:'3'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app/form/fields');
+      expect(request).toEqual('PUT');
+      expect(params).toEqual({app:'1', properties:{
+          foo:{code:'foo', type:'SINGLE_LINE_TEXT'}
+      }});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.updateFields(fields, {userFields:true}).then(function(resp) {
+      expect(resp).toEqual({revision:'3'});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.updateFields does not update when there is no option.", function(done) {
+    var fields = {properties:{
+      foo:{code:'foo', type:'SINGLE_LINE_TEXT'},
+      builtIn: {code:'builtIn', type:'CREATOR'},
+      ignore: {code:'ignore', type:'STATUS'}
+    }};
+
+    a.updateFields(fields).then(function() {}, function(error) {
+      expect(error.message).toBeDefined();
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.removeFields remove fields.", function(done) {
+    var fields = {properties:{
+      foo:{code:'foo', type:'SINGLE_LINE_TEXT'},
+      builtIn: {code:'builtIn', type:'CREATOR'},
+      ignore: {code:'ignore', type:'STATUS'}
+    }};
+    var result = {revision:'3'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app/form/fields');
+      expect(request).toEqual('DELETE');
+      expect(params).toEqual({app:'1', fields: ['foo', 'builtIn']});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.removeFields(fields).then(function(resp) {
+      expect(resp).toEqual({revision:'3'});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.removeFields remove fields from code list.", function(done) {
+    var fields = ['foo', 'bar'];
+    var result = {revision:'3'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app/form/fields');
+      expect(request).toEqual('DELETE');
+      expect(params).toEqual({app:'1', fields: fields});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.removeFields(fields).then(function(resp) {
+      expect(resp).toEqual({revision:'3'});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.removeFields return reject when fields are not correct type.", function(done) {
+    a.removeFields({}).then(function() {}, function(error) {
+      expect(error.message).toBeDefined();
+      done();
+    });
+  });
 });
 

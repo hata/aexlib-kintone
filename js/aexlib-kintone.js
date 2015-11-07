@@ -43,9 +43,11 @@ var aexlib = aexlib || {};
     k._NO_LABEL_FOUND = 'No label found';
     k._NO_FIELDS_FOUND = 'No fields found. Use fetchFields to get it.';
     k._NO_APP_PROPERTY_FOUND = 'No App property or argument found. property name:';
+    k._NO_PARAMS_FOUND = 'No parameters found. Please set params option.';
     k._UNKNOWN_UPDATE_REQUEST_FOUND_ERROR = 'Unknown update request found.';
     k._CANNOT_USE_BOTH_POST_AND_PUT_REQUESTS = 'Cannot use both POST and PUT requests.';
     k._CANNOT_USE_STRING_LABEL_ACCESS = 'Cannot use string when label access is set.';
+    k._UNSUPPORTED_TYPE_FOUND = 'Unsupported type found.';
 
     k.NUMBER_TYPE = 'NUMBER';
 
@@ -427,18 +429,86 @@ var aexlib = aexlib || {};
     };
 
     /**
-     * Update /k/v1/app/form/fields request.
-     * @method saveFields
-     * @param opt_newFields {property} Set a new fields config.
+     * POST /k/v1/preview/app/form/fields request which adds new fields.
+     * @method createFields
+     * @param newFields {JavaScript object} Set new fields config.
      * @return {Promise} Promise.resolve(resp) is returned when it is succeeded.
+     * resp is like {revision:'3'}.
      */
-/*
-    k.App.prototype.saveFields = function(opt_newFields) {
+    k.App.prototype.createFields = function(newFields) {
+        var url = '/k/v1/preview/app/form/fields';
+        var userFields = {};
 
-        // TODO: This is incorrect. This should split the data to build-in and non-build-in fields.
-        return this._updateConfig('/k/v1/app/form/fields', 'fields', opt_newFields);
+        for (var key in newFields.properties) {
+            var field = newFields.properties[key];
+            if (!k.App._isBuiltInField(field)) {
+                userFields[key] = field;
+            }
+        }
+
+        return k._fetch(url, 'POST', {app:this.appId, properties:userFields});
     };
-*/
+
+    /**
+     * PUT /k/v1/preview/app/form/fields request.
+     * @method updateFields
+     * @param updateFields {JavaScript object} Set updating fields config.
+     * @param params {JavaScript object} Set options to filter updating fields.
+     * It is like {builtInFields:true|false, userFields:true|false}
+     * @return {Promise} Promise.resolve(resp) is returned when it is succeeded.
+     * resp is like {revision:'3'}.
+     */
+    k.App.prototype.updateFields = function(updateFields, params) {
+        var url = '/k/v1/preview/app/form/fields';
+        var putFields = {};
+        var field;
+
+        if (k._isUndefined(params)) {
+            return k._reject({message:k._NO_PARAMS_FOUND});
+        }
+
+        for (var key in updateFields.properties) {
+            field = updateFields.properties[key];
+
+            if (k.App._isIgnoreField(field)) {
+                continue;
+            } else if ((params.builtInFields && k.App._isBuiltInField(field)) ||
+                (params.userFields && !k.App._isBuiltInField(field))) {
+                putFields[key] = field;
+            }
+        }
+
+        return k._fetch(url, 'PUT', {app:this.appId, properties:putFields});
+    };
+
+
+    /**
+     * DELETE /k/v1/preview/app/form/fields request.
+     * @method removeFields
+     * @param rmFields {JavaScript object|Array} Set fields config
+     * to be removed or Array of field codes.
+     * @return {Promise} Promise.resolve(resp) is returned when it is succeeded.
+     * resp is like {revision:'3'}.
+     */
+    k.App.prototype.removeFields = function(rmFields) {
+        var url = '/k/v1/preview/app/form/fields';
+        var names = [];
+        var field;
+
+        if (rmFields.properties) {
+            for (var key in rmFields.properties) {
+                if (!k.App._isIgnoreField(rmFields.properties[key])) {
+                    names.push(key);
+                }
+            }
+        } else if (Array.isArray(rmFields)) {
+            names = rmFields;
+        } else {
+            return k._reject({message:k._UNSUPPORTED_TYPE_FOUND});
+        }
+
+        return k._fetch(url, 'DELETE', {app:this.appId, fields:names});
+    };
 
     /**
      * Fetch /k/v1/app/form/layout request.
@@ -590,6 +660,7 @@ var aexlib = aexlib || {};
     };
 
     k.App.prototype.copyApp = function(opt_newApp) {
+        // TODO: Not implemented yet.
     };
 
     k.App.prototype._updateConfig = function(url, propName, opt_newConfig) {
@@ -622,6 +693,23 @@ var aexlib = aexlib || {};
             delete newConfig.app;
             return k._reject(error);
         });
+    };
+
+    k.App._isBuiltInField = function(field) {
+        var type = field ? field.type : undefined;
+        return type && (type === 'RECORD_NUMBER' ||
+                        type === 'CREATOR' ||
+                        type === 'CREATED_TIME' ||
+                        type === 'MODIFIER' ||
+                        type === 'UPDATED_TIME' ||
+                        k.App._isIgnoreField(field));
+    };
+
+    k.App._isIgnoreField =  function(field) {
+        var type = field ? field.type : undefined;
+        return type &&  type === 'STATUS' ||
+                        type === 'STATUS_ASSIGNEE' ||
+                        type === 'CATEGORY';
     };
 
     /**
