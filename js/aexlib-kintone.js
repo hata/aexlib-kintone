@@ -48,6 +48,7 @@ var aexlib = aexlib || {};
     k._CANNOT_USE_BOTH_POST_AND_PUT_REQUESTS = 'Cannot use both POST and PUT requests.';
     k._CANNOT_USE_STRING_LABEL_ACCESS = 'Cannot use string when label access is set.';
     k._UNSUPPORTED_TYPE_FOUND = 'Unsupported type found.';
+    k._DEPLOY_FAILED_INVALID_APPS_SET = 'Deploy failed because of invalid apps.';
 
     k.NUMBER_TYPE = 'NUMBER';
 
@@ -78,6 +79,10 @@ var aexlib = aexlib || {};
 
     k._isString = function(x) {
         return typeof x === 'string' || x instanceof String;
+    };
+
+    k._isNumber = function(x) {
+        return typeof x === 'number' || x instanceof Number;
     };
 
     k._toDoubleDigits = function(num) {
@@ -362,6 +367,7 @@ var aexlib = aexlib || {};
      * @param opt_space {Number} Set a space value if needed.
      * @param opt_thread {Number} Set a thread value if needed.
      * @return {Promise} Promise.resolve(resp) is returned for success.
+     * resp is App instance which contains a new appId.
      */
     k.App.createApp = function(name, opt_space, opt_thread) {
         var params = {name:name};
@@ -378,6 +384,74 @@ var aexlib = aexlib || {};
         });
     };
 
+    /**
+     * Deploy App instance.
+     *
+     * @method deployAll
+     * @static
+     * @param apps {Array of App|App} Set Array of App or a App instance to
+     * deploy the app.
+     * @param opt_params {JavaScript object} Set {revert:true} if it should be reverted.
+     * @return {Promise} Promise.resolve(resp) is returned for success.
+     */
+    k.App.deployAll = function(apps, opt_params) {
+        var appIds = [];
+        var params = {};
+        var app;
+
+        if (!Array.isArray(apps)) {
+            apps = [apps];
+        }
+
+        for (var i = 0;i < apps.length;i++) {
+            app = apps[i];
+            if (app instanceof k.App) {
+                appIds.push({app:app.appId});
+            } else if (k._isString(app) || (k._isNumber(app) && !isNaN(app))) {
+                appIds.push({app:app});
+            } else {
+                return k._reject({message:k._DEPLOY_FAILED_INVALID_APPS_SET});
+            }
+        }
+
+        if (opt_params && opt_params.revert) {
+            params.revert = true;
+        }
+
+        params.apps = appIds;
+
+        return k._fetch('/k/v1/preview/app/deploy', 'POST', params);
+    };
+
+    /**
+     * Get current status of applications.
+     * @method statusAll
+     * @static
+     * @param apps {Array of (App|String|Number)|App|String|Number}
+     * @return {Promise} Promise.resolve is called for success.
+     */
+    k.App.statusAll = function(apps, opt_params) {
+        var appIds = [];
+
+        if (!Array.isArray(apps)) {
+            apps = [apps];
+        }
+
+        for (var i = 0;i < apps.length;i++) {
+            var appId = apps[i] instanceof k.App ? apps[i].appId : apps[i];
+            if (k._isString(appId)) {
+                appId = parseInt(appId);
+            }
+
+            if (k._isNumber(appId) && !isNaN(appId)) {
+                appIds.push(appId);
+            } else {
+                return k._reject({message:k._DEPLOY_FAILED_INVALID_APPS_SET});
+            }
+        }
+
+        return k._fetch('/k/v1/preview/app/deploy', 'GET', {apps:appIds});
+    };
 
     /**
      * Fetch /k/v1/app request.
@@ -403,17 +477,15 @@ var aexlib = aexlib || {};
 
 
     /**
-     * TODO: It is better to check the behavior of this method.
-     * Update /k/v1/app/settings using the argument's settings or this.settings.
+     * PUT /k/v1/preview/app/settings using the argument's settings or this.settings.
      * If there is revision in the new settings, the property is deleted.
-     * app property is added or updated with this.appId.
      * @method updateSettings
-     * @param opt_newSettings {Object} This parameter can set to update settings for this app.
+     * @param opt_newSettings {JavaScript Object} This parameter can set to update settings for this app.
      * If this value is not set, then this.settings is used to update the app settings.
      * @return {Promise} Return result.
      */
     k.App.prototype.updateSettings = function(opt_newSettings) {
-        return this._updateConfig('/k/v1/app/settings', 'settings', opt_newSettings);
+        return this._updateConfig('/k/v1/preview/app/settings', 'settings', opt_newSettings);
     };
 
     /**
@@ -529,7 +601,7 @@ var aexlib = aexlib || {};
      * @return {Promise} Promise.resolve(resp) is returned when it is succeeded.
      */
     k.App.prototype.updateLayout = function(opt_newLayout) {
-        return this._updateConfig('/k/v1/app/form/layout', 'layout', opt_newLayout);
+        return this._updateConfig('/k/v1/preview/app/form/layout', 'layout', opt_newLayout);
     };
 
     /**
@@ -551,7 +623,7 @@ var aexlib = aexlib || {};
      * @return {Promise} Promise.resolve(resp) is returned when it is succeeded.
      */
     k.App.prototype.updateViews = function(opt_newViews) {
-        return this._updateConfig('/k/v1/app/views', 'views', opt_newViews);
+        return this._updateConfig('/k/v1/preview/app/views', 'views', opt_newViews);
     };
 
     /**
@@ -564,6 +636,29 @@ var aexlib = aexlib || {};
     k.App.prototype.fetchForm = function(opt_params) {
         var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/form' : '/k/v1/form';
         return k._fetch(url, 'GET', {app: this.appId}, this, 'form');
+    };
+
+    /**
+     * Deploy this app.
+     * @method deploy
+     * @param opt_param {JavaScript object} Set {revert:true} when reverting the deploy.
+     * @return {Promise} Promise.resolve is returned when deploy operation is suceeded.
+     * resp is undefined.
+     */
+    k.App.prototype.deploy = function(opt_params) {
+        return k.App.deployAll(this.appId, opt_params);
+    };
+
+    /**
+     * Check current status.
+     * @method status
+     * @return {Promise} Promise.resolve is returned when status check returns successfully.
+     * resp is like {status:'PROCESSING}
+     */
+    k.App.prototype.status = function() {
+        return k.App.statusAll(this.appId).then(function(resp) {
+            return resp.apps[0];
+        });
     };
 
     /**
@@ -659,8 +754,46 @@ var aexlib = aexlib || {};
         }
     };
 
-    k.App.prototype.copyApp = function(opt_newApp) {
-        // TODO: Not implemented yet.
+    /**
+     * Copy a current App to a new created App.
+     * @method copy
+     * @param newApp {JavaScript object}
+     *  {name:appName, space:opt_space, thread: opt_thread}
+     * @return {Promise} Promise.resolve(resp) is returned.
+     */
+    k.App.prototype.copy = function(newAppParams) {
+        var self = this;
+        var app;
+        return this.fetchSettings().
+           then(function() {
+            return self.fetchFields();
+        }).then(function() {
+            return self.fetchLayout();
+        }).then(function() {
+            return self.fetchViews();
+        }).then(function() {
+            return k.App.createApp(newAppParams.name, newAppParams.space, newAppParams.thread);
+        }).then(function(newApp) {
+            app = newApp;
+            var newSettings = {
+                description: self.settings.description,
+                icon: self.settings.icon,
+                theme: self.settings.theme
+            };
+            return app.updateSettings(newSettings);
+        }).then(function() {
+            return app.createFields(self.fields);
+        }).then(function() {
+            return app.updateFields(self.fields, {builtInFields:true});
+        }).then(function() {
+            return app.updateLayout(self.layout);
+        }).then(function() {
+            return app.updateViews(self.views);
+        }).then(function() {
+            return app.deploy();
+        }).then(function() {
+            return app;
+        });
     };
 
     k.App.prototype._updateConfig = function(url, propName, opt_newConfig) {

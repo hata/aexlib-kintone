@@ -1904,7 +1904,7 @@ describe("aexlib.kintone tests", function() {
     var result = {};
 
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
-      expect(url).toEqual('/k/v1/app/settings');
+      expect(url).toEqual('/k/v1/preview/app/settings');
       expect(request).toEqual('PUT');
       expect(params).toEqual({app:'1'});
       return new Promise(function(resolve) { resolve(result); });
@@ -1923,7 +1923,7 @@ describe("aexlib.kintone tests", function() {
     a.settings = newSettings;
 
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
-      expect(url).toEqual('/k/v1/app/settings');
+      expect(url).toEqual('/k/v1/preview/app/settings');
       expect(request).toEqual('PUT');
       expect(params).toEqual({app:'1', value:'foo'});
       return new Promise(function(resolve) { resolve(result); });
@@ -1942,7 +1942,7 @@ describe("aexlib.kintone tests", function() {
     a.settings = newSettings;
 
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
-      expect(url).toEqual('/k/v1/app/settings');
+      expect(url).toEqual('/k/v1/preview/app/settings');
       expect(request).toEqual('PUT');
       expect(params).toEqual({app:'1', value:'foo'});
       return new Promise(function(resolve) { resolve(result); });
@@ -1994,31 +1994,13 @@ describe("aexlib.kintone tests", function() {
       done();
     });
   });
-/*
-  it("aexlib.kintone.App.saveFields can update fields from the argument.", function(done) {
-    var newFields = {app:'id', revision:'2'};
-    var result = {foo:'bar'};
-
-    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
-      expect(url).toEqual('/k/v1/app/form/fields');
-      expect(request).toEqual('PUT');
-      expect(params).toEqual({app:'1'});
-      return new Promise(function(resolve) { resolve(result); });
-    });
-
-    a.saveFields(newFields).then(function(resp) {
-      expect(resp).toEqual(result);
-      done();
-    });
-  });
-*/
 
   it("aexlib.kintone.App.updateLayout can update layout from the argument.", function(done) {
     var newLayout = {app:'id', revision:'2'};
     var result = {};
 
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
-      expect(url).toEqual('/k/v1/app/form/layout');
+      expect(url).toEqual('/k/v1/preview/app/form/layout');
       expect(request).toEqual('PUT');
       expect(params).toEqual({app:'1'});
       return new Promise(function(resolve) { resolve(result); });
@@ -2035,7 +2017,7 @@ describe("aexlib.kintone tests", function() {
     var result = {foo:'bar'};
 
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
-      expect(url).toEqual('/k/v1/app/views');
+      expect(url).toEqual('/k/v1/preview/app/views');
       expect(request).toEqual('PUT');
       expect(params).toEqual({app:'1'});
       return new Promise(function(resolve) { resolve(result); });
@@ -2249,6 +2231,228 @@ describe("aexlib.kintone tests", function() {
   it("aexlib.kintone.App.removeFields return reject when fields are not correct type.", function(done) {
     a.removeFields({}).then(function() {}, function(error) {
       expect(error.message).toBeDefined();
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.deployAll deploy applications.", function(done) {
+    var apps = [ k.App.getApp('1'), k.App.getApp('2')];
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app/deploy');
+      expect(request).toEqual('POST');
+      expect(params).toEqual({apps:[{app:'1'}, {app:'2'}]});
+      return new Promise(function(resolve) { resolve(); });
+    });
+
+    // No response from manual.
+    k.App.deployAll(apps).then(function(resp) {
+      expect(resp).toBeUndefined();
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.deployAll deploy a single appId.", function(done) {
+    var appId = '1';
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app/deploy');
+      expect(request).toEqual('POST');
+      expect(params).toEqual({apps:[{app:'1'}]});
+      return new Promise(function(resolve) { resolve(); });
+    });
+
+    // No response from manual.
+    k.App.deployAll(appId).then(function(resp) {
+      expect(resp).toBeUndefined();
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.deployAll deploy number appIds with revert option.", function(done) {
+    var appIds = [1,2,3];
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app/deploy');
+      expect(request).toEqual('POST');
+      expect(params).toEqual({apps:[{app:1}, {app:2}, {app:3}], revert:true});
+      return new Promise(function(resolve) { resolve(); });
+    });
+
+    // No response from manual.
+    k.App.deployAll(appIds, {revert:true}).then(function(resp) {
+      expect(resp).toBeUndefined();
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.deployAll deploy an app with revert false option.", function(done) {
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(params).toEqual({apps:[{app:'1'}]});
+      return new Promise(function(resolve) { resolve(); });
+    });
+
+    // No response from manual.
+    k.App.deployAll(['1'], {revert:false}).then(function(resp) {
+      expect(resp).toBeUndefined();
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.deployAll deploy error when invalid value is set.", function(done) {
+    k.App.deployAll(null, {revert:false}).then(function() {}, function(error) {
+      expect(error.message).toBeDefined();
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.statusAll checks status for applications.", function(done) {
+    var result = {apps:[{app:1, status:'PROCESSING'}, {app:2, status:'PROCESSING'}]};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app/deploy');
+      expect(request).toEqual('GET');
+      expect(params).toEqual({apps:[1,2]});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    k.App.statusAll([1,2]).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.statusAll can handle an object like App instead of Array.", function(done) {
+    var result = {apps:[{app:1, status:'PROCESSING'}]};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app/deploy');
+      expect(request).toEqual('GET');
+      expect(params).toEqual({apps:[1]});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    k.App.statusAll(k.App.getApp('1')).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.statusAll throw when invalid argument is set.", function(done) {
+    k.App.statusAll(null).then(function() {}, function(error) {
+      expect(error.message).toBeDefined();
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.deploy deploy a current App.", function(done) {
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app/deploy');
+      expect(request).toEqual('POST');
+      expect(params).toEqual({apps:[{app:'1'}]});
+      return new Promise(function(resolve) { resolve(); });
+    });
+
+    // No response from manual.
+    a.deploy().then(function(resp) {
+      expect(resp).toBeUndefined();
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.deploy can revert a current App when {revert:true} is set.", function(done) {
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app/deploy');
+      expect(request).toEqual('POST');
+      expect(params).toEqual({apps:[{app:'1'}], revert:true});
+      return new Promise(function(resolve) { resolve(); });
+    });
+
+    // No response from manual.
+    a.deploy({revert:true}).then(function(resp) {
+      expect(resp).toBeUndefined();
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.status check a current App status.", function(done) {
+    var result = {apps:[{app:1, status:'PROCESSING'}]};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/preview/app/deploy');
+      expect(request).toEqual('GET');
+      expect(params).toEqual({apps:[1]});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.status().then(function(resp) {
+      expect(resp.status).toEqual('PROCESSING');
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.copy can copy configs from an existing app to a new created app.", function(done) {
+    var resultSettings = {
+      "name": "Foo",
+      "description": "desc",
+      "icon": {
+        "type": "PRESET",
+        "key": "APP60"
+      },
+      "theme": "WHITE",
+      "revision": "24"
+    };
+
+    var app = k.App.getApp('1');
+    expect(app.settings).toBeUndefined();
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      if (url === '/k/v1/app/settings' && request === 'GET') {
+        expect(params.app).toEqual('1');
+        return new Promise(function(resolve) { resolve(resultSettings); });
+      } else if (url === '/k/v1/app/form/fields' && request === 'GET') {
+        expect(params.app).toEqual('1');
+        return new Promise(function(resolve) { resolve({properties: { 'foo': {code:'foo'} } }); });
+      } else if (url === '/k/v1/app/form/layout' && request === 'GET') {
+        expect(params).toEqual({app:'1'});
+        return new Promise(function(resolve) { resolve({layout:[{type:'ROW'}]}); });
+      } else if (url === '/k/v1/app/views' && request === 'GET') {
+        expect(params.app).toEqual('1');
+        return new Promise(function(resolve) { resolve({views:{'viewNameKey':{name:'viewNameKey'}}}); });
+      } else if (url === '/k/v1/preview/app' && request === 'POST') {
+        expect(params.name).toEqual('new_app');
+        return new Promise(function(resolve) { resolve({app:'2', revision:'1'}); });
+      } else if (url === '/k/v1/preview/app/settings' && request === 'PUT') {
+        expect(params.app).toEqual('2');
+        expect(params.name).toBeUndefined();
+        expect(params.description).toEqual(resultSettings.description);
+        expect(params.icon).toEqual(resultSettings.icon);
+        expect(params.theme).toEqual(resultSettings.theme);
+        return new Promise(function(resolve) { resolve( {app:'2', revision:'2'}); });
+      } else if (url === '/k/v1/preview/app/form/fields' && request === 'POST') {
+        expect(params.app).toEqual('2');
+        expect(params.properties).toBeDefined();
+        return new Promise(function(resolve) { resolve({revision:'4'}); });
+      } else if (url === '/k/v1/preview/app/form/fields' && request === 'PUT') {
+        expect(params.app).toEqual('2');
+        return new Promise(function(resolve) { resolve({revision:'5'}); });
+      } else if (url === '/k/v1/preview/app/form/layout' && request === 'PUT') {
+        expect(params.app).toEqual('2');
+        return new Promise(function(resolve) { resolve({revision:'6'}); });
+      } else if (url === '/k/v1/preview/app/views' && request === 'PUT') {
+        expect(params.app).toEqual('2');
+        return new Promise(function(resolve) { resolve({revision:'7'}); });
+      } else if (url === '/k/v1/preview/app/deploy' && request === 'POST') {
+        expect(params.apps[0].app).toEqual('2');
+        return new Promise(function(resolve) {resolve();});
+      }
+
+      expect('This should no tbe called').toBe();
+    });
+
+    a.copy({name:'new_app'}).then(function(resp) {
+      expect(resp instanceof k.App).toEqual(true);
+      expect(resp.appId).toEqual('2');
       done();
     });
   });
