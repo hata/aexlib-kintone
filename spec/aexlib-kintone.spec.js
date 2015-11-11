@@ -2403,9 +2403,6 @@ describe("aexlib.kintone tests", function() {
       "revision": "24"
     };
 
-    var app = k.App.getApp('1');
-    expect(app.settings).toBeUndefined();
-
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       if (url === '/k/v1/app/settings' && request === 'GET') {
         expect(params.app).toEqual('1');
@@ -2453,6 +2450,17 @@ describe("aexlib.kintone tests", function() {
     a.copy({name:'new_app'}).then(function(resp) {
       expect(resp instanceof k.App).toEqual(true);
       expect(resp.appId).toEqual('2');
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.copy may call error response(Promise.reject) when there is a problem.", function(done) {
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      return k._reject({message:'failed'});
+    });
+
+    a.copy({name:'new_app'}).then(function() {}, function(error) {
+      expect(error.message).toEqual('failed');
       done();
     });
   });
