@@ -798,6 +798,18 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.Query.first can fetch a guest space's app record with guestSpaceId param.", function(done) {
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/records');
+      expect(params.query).toEqual('limit 2 offset 0');
+      return new Promise(function(resolve) { resolve({records: []}); });
+    });
+
+    a.first({maxRecordNum:2}).then(function(records) {
+      done();
+    });
+  });
+
   it("aexlib.kintone.Query.fetch fetch records and then return Promise.", function(done) {
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(url).toEqual('/k/v1/records');
