@@ -718,11 +718,13 @@ var aexlib = aexlib || {};
      * @param opt_maxRecordNum {Number} Set the max number of records to be return.
      * If this value is not set(or set to 1), then this method only returns 1 Record.
      * If the value is set more than 2, then return the array of Record.
+     * @param opt_params {guestSpaceId:'foo'} Set a guest space id to get
+     * records from a guest space's app.
      * @return {Promise} This method returns Promise instance. When the request
      * is successful, then resolve is called. Otherwise, reject is called.
      */
-    k.App.prototype.first = function(opt_maxRecordNum) {
-        return k._newQuery(this).first(opt_maxRecordNum);
+    k.App.prototype.first = function(opt_maxRecordNum, opt_params) {
+        return k._newQuery(this).first(opt_maxRecordNum, opt_params);
     };
 
 
@@ -911,16 +913,30 @@ var aexlib = aexlib || {};
      * Get first Record instance(s).
      *
      * @method first
-     * @param opt_maxRecordNum {Number} This option is used to return several Record
-     * instances. The default number of Records is 1.
+     * @param opt_maxRecordNumOrParams {Number|{maxRecordNum:1,guestSpaceId:'foo'}}
+     * When set a Number, then return several Record instance. The default number is 1.
+     * When set a JavaScript object like {maxRecordNum:1, guestSpaceId:'foo'},
+     * then set a guest space id to access a guest space's app.
      * @return {Promise}. If it succeeded, then return record. Otherwise, undefined.
      * If kintone returns an error response, then reject is called by Promise.
      */
-    k.Query.prototype.first = function(opt_maxRecordNum) {
-        var maxRecordNum = k._isDefined(opt_maxRecordNum) ? opt_maxRecordNum : 1;
+    k.Query.prototype.first = function(opt_maxRecordNumOrParams) {
+        var maxRecordNum = k._isNumber(opt_maxRecordNumOrParams) ? opt_maxRecordNumOrParams : 1;
+        var params;
+
+        if (!k._isNumber(opt_maxRecordNumOrParams) && k._isDefined(opt_maxRecordNumOrParams)) {
+            if (k._isNumber(opt_maxRecordNumOrParams.maxRecordNum)) {
+                maxRecordNum = opt_maxRecordNumOrParams.maxRecordNum;
+            }
+            if (k._isDefined(opt_maxRecordNumOrParams.guestSpaceId)) {
+                params = {guestSpaceId: opt_maxRecordNumOrParams.guestSpaceId};
+            }
+        }
+
+        // TODO: This may cause a bug when call first and then find.
         this.limit(maxRecordNum);
 
-        return this.find().then(function(records) {
+        return this.find(params).then(function(records) {
             return records.length > 1 ?
                 records :
                 (records.length === 1 ?
@@ -941,9 +957,11 @@ var aexlib = aexlib || {};
      * </code></pre>
      *
      * @method find
+     * @param opt_params {guestSpaceId:'foo'} Set a guest space id
+     * if the request is for a guest space's app.
      * @return {Promise} Return Promise.resolve(Array of Record) .
      */
-    k.Query.prototype.find = function() {
+    k.Query.prototype.find = function(opt_params) {
         var self = this;
         var toParamsHandler = function(offset, batchSize) {
             return {app: self.app.appId, fields: self._queryFields, query: self._buildQuery(offset, batchSize) };
@@ -955,7 +973,7 @@ var aexlib = aexlib || {};
         var startOffset = k._isDefined(this._offset) ? this._offset : 0;
         var maxRecordNum = k._isDefined(this._limit) ? this._limit : null;
         var fetchParams = {
-            url: '/k/v1/records',
+            url: k._requestPath('records', opt_params),
             request:'GET',
             resultProperty: 'records',
             toParamsHandler: toParamsHandler,

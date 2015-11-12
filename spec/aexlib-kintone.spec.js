@@ -787,6 +787,17 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.Query.first can fetch a guest space's app record with guestSpaceId param.", function(done) {
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/records');
+      return new Promise(function(resolve) { resolve({records: []}); });
+    });
+
+    a.first({guestSpaceId:'foo'}).then(function(records) {
+      done();
+    });
+  });
+
   it("aexlib.kintone.Query.fetch fetch records and then return Promise.", function(done) {
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(url).toEqual('/k/v1/records');
@@ -838,6 +849,17 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.Query.find can fetch a guest space's app records when guestSpaceId param is set.", function(done) {
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/records');
+      return new Promise(function(resolve) { resolve({records: [] }); });
+    });
+
+    a.select().find({guestSpaceId:'foo'}).then(function(records) {
+      expect(records).toEqual([]);
+      done();
+    });
+  });
 
   it("aexlib.kintone.App.select can start query.", function() {
     var app = k.App.getApp('1');
