@@ -203,8 +203,8 @@ var aexlib = aexlib || {};
      * updateParams.toParamsHandler = function(appId, records, validateRevisions) {}
      * updateParams.toResultHandler = function(records, resp, cumulativeResult) {}
      */
-    k._recursiveUpdate = function(updateParams, records, opt_validateRevisions, opt_result) {
-        var validateRevisions = k.Record._isValidationEnabled(opt_validateRevisions);
+    k._recursiveUpdate = function(updateParams, records, opt_params, opt_result) {
+        var validateRevisions = k.Record._isValidationEnabled(opt_params);
         var remains;
         var params;
         var appId;
@@ -236,7 +236,7 @@ var aexlib = aexlib || {};
 
         return k._kintoneFunc(k._KINTONE_API)(updateParams.url, updateParams.request, params).then(function(resp) {
             var result = updateParams.toResultHandler(records, resp, opt_result);
-            return remains ? k._recursiveUpdate(updateParams, remains, validateRevisions, result) : result;
+            return remains ? k._recursiveUpdate(updateParams, remains, opt_params, result) : result;
         }, function(errResp) {
             return k._reject(errResp);
         });
@@ -249,6 +249,21 @@ var aexlib = aexlib || {};
 
     k._newRecord = function(app, opt_record) {
         return new k.Record(app, opt_record);
+    };
+
+    // cmd {String} e.g. records, app/settings
+    // opt_params {guestSpaceId:'foo', preview:true|false}
+    k._requestPath = function(cmd, opt_params) {
+        return (k._isDefined(opt_params) && k._isDefined(opt_params.guestSpaceId) ? '/k/guest/' + opt_params.guestSpaceId : '/k') +
+               (k._isDefined(opt_params) && opt_params.preview ? '/v1/preview' : '/v1') + '/' + cmd;
+    };
+
+    // cmd {String} e.g. records, app/settings
+    // opt_params {guestSpaceId:'foo'}
+    k._previewRequestPath = function(cmd, opt_params) {
+        var params = k._isDefined(opt_params) && k._isDefined(opt_params.guestSpaceId) ?
+            {guestSpaceId:opt_params.guestSpaceId, preview:true} : {preview:true};
+        return k._requestPath(cmd, params);
     };
 
     /**
@@ -323,9 +338,12 @@ var aexlib = aexlib || {};
      * </code></pre>
      *
      * @method fetchApps
-     * @param opt_params {property} Set properties to fetch apps. ids, codes, and name can be used
+     * @param opt_params {guestSpaceId:'foo', ids, codes, name, spaceIds}
+     * Set properties to fetch apps. ids, codes, and name can be used
      * to set query params.
-     * @return {Promise} Promise is returned. When the request is failed, then reject is called.
+     * If guestSpaceId is set, then set it to url for a guest space id.
+     * @return {Promise} Promise is returned. When the request is failed,
+     * then reject is called.
      * Otherwise, resolve(the array of App instance) is called.
      */
     k.App.fetchApps = function(opt_params) {
@@ -348,7 +366,7 @@ var aexlib = aexlib || {};
             return params;
         };
         var fetchParams = {
-            url: '/k/v1/apps',
+            url: k._requestPath('apps', opt_params),
             request:'GET',
             resultProperty: 'apps',
             toParamsHandler: toParamsHandler
@@ -366,20 +384,22 @@ var aexlib = aexlib || {};
      * @param name {String} Set a new app name.
      * @param opt_space {Number} Set a space value if needed.
      * @param opt_thread {Number} Set a thread value if needed.
+     * @param opt_params {guestSpaceId:'foo'} Set a guest space id if needed.
      * @return {Promise} Promise.resolve(resp) is returned for success.
      * resp is App instance which contains a new appId.
      */
-    k.App.createApp = function(name, opt_space, opt_thread) {
+    k.App.createApp = function(name, opt_space, opt_thread, opt_params) {
         var params = {name:name};
-        if (k._isDefined(opt_space)) {
+        if (k._isNumber(opt_space)) {
             params.space = opt_space;
         }
-        if (k._isDefined(opt_thread)) {
+        if (k._isNumber(opt_thread)) {
             params.thread = opt_thread;
         }
 
         // Response is like {app:"23", revision:"1"}
-        return k._fetch('/k/v1/preview/app', 'POST', params).then(function(resp) {
+        return k._fetch(k._previewRequestPath('app', opt_params),
+            'POST', params).then(function(resp) {
             return k.App.getApp(resp.app);
         });
     };
@@ -391,7 +411,8 @@ var aexlib = aexlib || {};
      * @static
      * @param apps {Array of App|App} Set Array of App or a App instance to
      * deploy the app.
-     * @param opt_params {JavaScript object} Set {revert:true} if it should be reverted.
+     * @param opt_params {guestSpaceId:'foo',revert:true} If a guest space app, then set
+     * a guest space id. And if applications should be reverted, then set revert:true.
      * @return {Promise} Promise.resolve(resp) is returned for success.
      */
     k.App.deployAll = function(apps, opt_params) {
@@ -420,7 +441,7 @@ var aexlib = aexlib || {};
 
         params.apps = appIds;
 
-        return k._fetch('/k/v1/preview/app/deploy', 'POST', params);
+        return k._fetch(k._previewRequestPath('app/deploy', opt_params), 'POST', params);
     };
 
     /**
@@ -428,6 +449,7 @@ var aexlib = aexlib || {};
      * @method statusAll
      * @static
      * @param apps {Array of (App|String|Number)|App|String|Number}
+     * @param opt_params {guestSpaceId:'foo'} Set id for a guest space apps.
      * @return {Promise} Promise.resolve is called for success.
      */
     k.App.statusAll = function(apps, opt_params) {
@@ -450,65 +472,68 @@ var aexlib = aexlib || {};
             }
         }
 
-        return k._fetch('/k/v1/preview/app/deploy', 'GET', {apps:appIds});
+        return k._fetch(k._previewRequestPath('app/deploy', opt_params), 'GET', {apps:appIds});
     };
 
     /**
      * Fetch /k/v1/app request.
      *
      * @method fetchApp
+     * @param opt_params {guestSpaceId:'foo'} Set a space id if needed.
      * @return {Promise} Promise.resolve(resp) is returned. And App.app is also set.
      */
-    k.App.prototype.fetchApp = function() {
-        return k._fetch('/k/v1/app', 'GET', {id: this.appId, lang: this.lang}, this, 'app');
+    k.App.prototype.fetchApp = function(opt_params) {
+        return k._fetch(k._requestPath('app', opt_params),
+            'GET', {id: this.appId, lang: this.lang}, this, 'app');
     };
 
     /**
      * Fetch /k/v1/app/settings request.
      *
      * @method fetchSettings
-     * @param opt_params {property} Set preview property flag. {preview: true|false}
+     * @param opt_params {guestSpaceId:'foo',preview:true|false} Set params to get request path.
      * @return {Promise} Promise.resolve(resp) is returned. And also App.settings is set.
      */
     k.App.prototype.fetchSettings = function(opt_params) {
-        var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/app/settings' : '/k/v1/app/settings';
-        return k._fetch(url, 'GET', {app: this.appId, lang: this.lang}, this, 'settings');
+        return k._fetch(k._requestPath('app/settings', opt_params),
+            'GET', {app: this.appId, lang: this.lang}, this, 'settings');
     };
-
 
     /**
      * PUT /k/v1/preview/app/settings using the argument's settings or this.settings.
      * If there is revision in the new settings, the property is deleted.
      * @method updateSettings
-     * @param opt_newSettings {JavaScript Object} This parameter can set to update settings for this app.
+     * @param newSettings {JavaScript Object} This parameter can set to update settings for this app.
+     * @param opt_params {guestSpaceId:'foo'} Set guest space id if needed. (preview is always true)
      * If this value is not set, then this.settings is used to update the app settings.
      * @return {Promise} Return result.
      */
-    k.App.prototype.updateSettings = function(opt_newSettings) {
-        return this._updateConfig('/k/v1/preview/app/settings', 'settings', opt_newSettings);
+    k.App.prototype.updateSettings = function(newSettings, opt_params) {
+        return this._updateConfig(k._previewRequestPath('app/settings', opt_params),
+            'settings', newSettings);
     };
 
     /**
      * Fetch /k/v1/app/form/fields request.
      *
      * @method fetchFields
-     * @param opt_params {property} Set preview property flag. {preview: true|false}
+     * @param opt_params {guestSpaceId:'foo',preview:true|false} Set preview property flag.
      * @return {Promise} Promise.resolve(resp) is returned. And also App.fields is set.
      */
     k.App.prototype.fetchFields = function(opt_params) {
-        var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/app/form/fields' : '/k/v1/app/form/fields';
-        return k._fetch(url, 'GET', {app: this.appId, lang: this.lang}, this, 'fields');
+        return k._fetch(k._requestPath('app/form/fields', opt_params),
+            'GET', {app: this.appId, lang: this.lang}, this, 'fields');
     };
 
     /**
      * POST /k/v1/preview/app/form/fields request which adds new fields.
      * @method createFields
      * @param newFields {JavaScript object} Set new fields config.
+     * @param opt_params {guestSpaceId:'foo'} Set guestSpaceId if needed. preview is always true.
      * @return {Promise} Promise.resolve(resp) is returned when it is succeeded.
      * resp is like {revision:'3'}.
      */
-    k.App.prototype.createFields = function(newFields) {
-        var url = '/k/v1/preview/app/form/fields';
+    k.App.prototype.createFields = function(newFields, opt_params) {
         var userFields = {};
 
         for (var key in newFields.properties) {
@@ -518,7 +543,8 @@ var aexlib = aexlib || {};
             }
         }
 
-        return k._fetch(url, 'POST', {app:this.appId, properties:userFields});
+        return k._fetch(k._previewRequestPath('app/form/fields', opt_params),
+            'POST', {app:this.appId, properties:userFields});
     };
 
     /**
@@ -527,11 +553,12 @@ var aexlib = aexlib || {};
      * @param updateFields {JavaScript object} Set updating fields config.
      * @param params {JavaScript object} Set options to filter updating fields.
      * It is like {builtInFields:true|false, userFields:true|false}
+     * And this can also set guestSpaceId to add guest/spaceId to request path.
+     * It is like {buildInFields:true, guestSpaceId:'foo'}.
      * @return {Promise} Promise.resolve(resp) is returned when it is succeeded.
      * resp is like {revision:'3'}.
      */
     k.App.prototype.updateFields = function(updateFields, params) {
-        var url = '/k/v1/preview/app/form/fields';
         var putFields = {};
         var field;
 
@@ -550,7 +577,8 @@ var aexlib = aexlib || {};
             }
         }
 
-        return k._fetch(url, 'PUT', {app:this.appId, properties:putFields});
+        return k._fetch(k._previewRequestPath('app/form/fields', params),
+            'PUT', {app:this.appId, properties:putFields});
     };
 
 
@@ -559,11 +587,11 @@ var aexlib = aexlib || {};
      * @method removeFields
      * @param rmFields {JavaScript object|Array} Set fields config
      * to be removed or Array of field codes.
+     * @param opt_params {guestSpaceId:'foo'} Set a guest space id if needed.
      * @return {Promise} Promise.resolve(resp) is returned when it is succeeded.
      * resp is like {revision:'3'}.
      */
-    k.App.prototype.removeFields = function(rmFields) {
-        var url = '/k/v1/preview/app/form/fields';
+    k.App.prototype.removeFields = function(rmFields, opt_params) {
         var names = [];
         var field;
 
@@ -579,63 +607,71 @@ var aexlib = aexlib || {};
             return k._reject({message:k._UNSUPPORTED_TYPE_FOUND});
         }
 
-        return k._fetch(url, 'DELETE', {app:this.appId, fields:names});
+        return k._fetch(k._previewRequestPath('app/form/fields', opt_params),
+            'DELETE', {app:this.appId, fields:names});
     };
 
     /**
      * Fetch /k/v1/app/form/layout request.
      *
      * @method fetchLayout
-     * @param opt_params {property} Set preview property flag. {preview: true|false}
+     * @param opt_params {guestSpaceId:'foo', preview:true|false} Set a guest space id
+     * and/or a preview flag.
      * @return {Promise} Promise.resolve(resp) is returned. App.layout is also set.
      */
     k.App.prototype.fetchLayout = function(opt_params) {
-        var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/app/form/layout' : '/k/v1/app/form/layout';
-        return k._fetch(url, 'GET', {app: this.appId}, this, 'layout');
+        return k._fetch(k._requestPath('app/form/layout', opt_params),
+            'GET', {app: this.appId}, this, 'layout');
     };
 
     /**
      * Update /k/v1/app/form/layout request.
      * @method updateLayout
-     * @param opt_newLayout {property} Set a new layout config.
+     * @param newLayout {property} Set a new layout config.
+     * @param opt_params {guestSpaceId:'foo'} Set a guest space id if needed.
      * @return {Promise} Promise.resolve(resp) is returned when it is succeeded.
      */
-    k.App.prototype.updateLayout = function(opt_newLayout) {
-        return this._updateConfig('/k/v1/preview/app/form/layout', 'layout', opt_newLayout);
+    k.App.prototype.updateLayout = function(newLayout, opt_params) {
+        return this._updateConfig(k._previewRequestPath('app/form/layout', opt_params),
+            'layout', newLayout);
     };
 
     /**
      * Fetch /k/v1/app/views request.
      *
      * @method fetchViews
-     * @param opt_params {property} This can set preview flag like {preview: true|false}
+     * @param opt_params {guestSpaceId:'foo', preview:true|false} Set a guest space id and/or
+     * a preview flag.
      * @return {Promise} Promise.resolve(resp) is returned. App.views is also set.
      */
     k.App.prototype.fetchViews = function(opt_params) {
-        var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/app/views' : '/k/v1/app/views';
+        var url = k._requestPath('app/views', opt_params);
         return k._fetch(url, 'GET', {app: this.appId, lang: this.lang}, this, 'views');
     };
 
     /**
      * Update '/k/v1/app/views' request.
      * @method updateViews
-     * @param opt_newViews {property} Set a new views config.
+     * @param newViews {property} Set a new views config.
+     * @param opt_params {guestSpaceId:'foo'} Set a guest space id if needed.
      * @return {Promise} Promise.resolve(resp) is returned when it is succeeded.
      */
-    k.App.prototype.updateViews = function(opt_newViews) {
-        return this._updateConfig('/k/v1/preview/app/views', 'views', opt_newViews);
+    k.App.prototype.updateViews = function(newViews, opt_params) {
+        return this._updateConfig(k._previewRequestPath('app/views', opt_params),
+            'views', newViews);
     };
 
     /**
      * Fetch /k/v1/form request.
      *
      * @method fetchForm
-     * @param opt_params {property} This can set preview flag like {preview: true|false}
+     * @param opt_params {guestSpaceId:'foo', preview:true|false} Set a guest space id
+     * and/or preview flag if needed.
      * @return {Promise} Promise(resp) is returned. And App.form is also set.
      */
     k.App.prototype.fetchForm = function(opt_params) {
-        var url = k._isDefined(opt_params) && opt_params.preview ? '/k/v1/preview/form' : '/k/v1/form';
-        return k._fetch(url, 'GET', {app: this.appId}, this, 'form');
+        return k._fetch(k._requestPath('form', opt_params),
+            'GET', {app: this.appId}, this, 'form');
     };
 
     /**
@@ -1485,10 +1521,10 @@ var aexlib = aexlib || {};
      * @method saveAll
      * @static
      * @param records {Array of Record}
-     * @param opt_validateRevisions {boolean}
+     * @param opt_params {guestSpaceId:'foo', validation:true|false}
      * @return {Promise}
      */
-    k.Record.saveAll = function(records, opt_validateRevisions) {
+    k.Record.saveAll = function(records, opt_params) {
        var i;
        var recordId;
        var creatingRecords = [];
@@ -1510,9 +1546,9 @@ var aexlib = aexlib || {};
        }
 
        if (creatingRecords.length > 0) {
-           return k.Record.createAll(creatingRecords, opt_validateRevisions);
+           return k.Record.createAll(creatingRecords, opt_params);
        } else if (updatingRecords.length > 0) {
-           return k.Record.updateAll(updatingRecords, opt_validateRevisions);
+           return k.Record.updateAll(updatingRecords, opt_params);
        } else {
            return k._reject({message:k._NO_UPDATE_FOUND_ERROR});
        }
@@ -1525,10 +1561,11 @@ var aexlib = aexlib || {};
      * @method createAll
      * @static
      * @param records {Array of Record} All Records should be new Records.
+     * @param opt_params {guestSpaceId:'foo', validation:true|false}
      * @return {Promise}
      */
-    k.Record.createAll = function(records, opt_validateRevisions) {
-        return k._recursiveUpdate(k.Record._getCreateParams(), records, opt_validateRevisions);
+    k.Record.createAll = function(records, opt_params) {
+        return k._recursiveUpdate(k.Record._getCreateParams(opt_params), records, opt_params);
     };
 
     /**
@@ -1537,11 +1574,12 @@ var aexlib = aexlib || {};
      * @method updateAll
      * @static
      * @param records {Array of Record} All Records should be existing Records.
-     * @param opt_validateRevisions {boolean} If true is set, then validate revisions.
+     * @param opt_params {guestSpaceId:'foo', validation:true|false}
+     * If true is set to validation, then validate revisions.
      * @return {Promise}
      */
-    k.Record.updateAll = function(records, opt_validateRevisions) {
-        return k._recursiveUpdate(k.Record._getUpdateParams(), records, opt_validateRevisions);
+    k.Record.updateAll = function(records, opt_params) {
+        return k._recursiveUpdate(k.Record._getUpdateParams(opt_params), records, opt_params);
     };
 
     /**
@@ -1550,14 +1588,16 @@ var aexlib = aexlib || {};
      * @method removeAll
      * @static
      * @param records {Array of Record} All Records should be existing Records.
-     * @param opt_validateRevisions {boolean} If true is set, then validate revisions.
+     * @param opt_params {guestSpaceId:'foo', validation:true|false}
+     * If true is set, then validate revisions.
      * @return {Promise}
      */
-    k.Record.removeAll = function(records, opt_validateRevisions) {
-        return k._recursiveUpdate(k.Record._getRemoveParams(), records, opt_validateRevisions);
+    k.Record.removeAll = function(records, opt_params) {
+        return k._recursiveUpdate(k.Record._getRemoveParams(opt_params), records, opt_params);
     };
 
-    k.Record._getUpdateParams = function() {
+    // opt_params {guestSpaceId:'foo'}
+    k.Record._getUpdateParams = function(opt_params) {
         var toParamsHandler = function(appId, records, validateRevisions) {
             var updatedRecords = records.map(function(record) {
                 return validateRevisions ?
@@ -1591,14 +1631,15 @@ var aexlib = aexlib || {};
         };
 
         return {
-            url: '/k/v1/records',
+            url: k._requestPath('records', opt_params),
             request:'PUT',
             toParamsHandler:toParamsHandler,
             toResultHandler:toResultHandler
         };
     };
 
-    k.Record._getCreateParams = function() {
+    // opt_params {guestSpaceId:'foo'}
+    k.Record._getCreateParams = function(opt_params) {
         var toParamsHandler = function(appId, records, validateRevisions) {
             var updatedRecords = records.map(function(record) {
                 return record.record;
@@ -1618,14 +1659,15 @@ var aexlib = aexlib || {};
         };
 
         return {
-            url: '/k/v1/records',
+            url: k._requestPath('records', opt_params),
             request:'POST',
             toParamsHandler:toParamsHandler,
             toResultHandler:toResultHandler
         };
     };
 
-    k.Record._getRemoveParams = function() {
+    // opt_params {guestSpaceId:'foo'}
+    k.Record._getRemoveParams = function(opt_params) {
         var toParamsHandler = function(appId, records, validateRevisions) {
             var recordIds = [];
             var revisions = [];
@@ -1644,7 +1686,7 @@ var aexlib = aexlib || {};
         var toResultHandler = function(records, resp, opt_result) { return {}; };
 
         return {
-            url: '/k/v1/records',
+            url: k._requestPath('records', opt_params),
             request:'DELETE',
             toParamsHandler:toParamsHandler,
             toResultHandler:toResultHandler
@@ -1783,9 +1825,9 @@ var aexlib = aexlib || {};
         }
     };
 
-    k.Record._isValidationEnabled = function(validation) {
-        return k._isDefined(validation) ?
-            validation :
+    k.Record._isValidationEnabled = function(params) {
+        return k._isDefined(params) && k._isDefined(params.validation) ?
+            params.validation :
             k._DEFAULT_VALIDATE_REVISION;
     };
 
@@ -1887,13 +1929,16 @@ var aexlib = aexlib || {};
      * a new record will be created.
      *
      * @method save
+     * @param opt_obj {Object} If this value is set, then result is set to this object's prop.
+     * @param opt_prop {String} Set a property name if result should be set to an object.
+     * @param opt_params {guestSpaceId:'foo', validation:true|false}
      * @return {Promise} Promise.resolve(resp) is returned when the request
      * is succeeded. If error is returned, then Promise.reject(error) is called.
      */
-    k.Record.prototype.save = function(opt_obj, opt_prop, opt_validateRevision) {
+    k.Record.prototype.save = function(opt_obj, opt_prop, opt_params) {
         var obj = k._isUndefined(opt_obj) ? undefined : opt_obj;
         var prop = k._isUndefined(opt_prop) ? undefined : opt_prop;
-        var validateRevision = k.Record._isValidationEnabled(opt_validateRevision);
+        var validateRevision = k.Record._isValidationEnabled(opt_params);
         var rid = this.recordId();
         var params;
         var self = this;
@@ -1903,7 +1948,7 @@ var aexlib = aexlib || {};
             params = validateRevision ?
                 {app:this.app.appId, id:rid, revision:this.revision(), record:this.updated} :
                 {app:this.app.appId, id:rid, record:this.updated};
-            return k._fetch('/k/v1/record', 'PUT', params, obj, prop).then(function(resp) {
+            return k._fetch(k._requestPath('record', opt_params), 'PUT', params, obj, prop).then(function(resp) {
                 self.revision(resp.revision);
                 return resp;
             });
@@ -1911,7 +1956,7 @@ var aexlib = aexlib || {};
             // NOTE: If there is no recordId, then this.record should have a new data only.
             // (No type or other values in it. Or, it may be better to filter record.)
             params = {app:this.app.appId, record:this.record};
-            return k._fetch('/k/v1/record', 'POST', params, obj, prop).then(function(resp) {
+            return k._fetch(k._requestPath('record', opt_params), 'POST', params, obj, prop).then(function(resp) {
                 self.recordId(resp.id);
                 self.revision(resp.revision);
                 return resp;
@@ -1925,21 +1970,22 @@ var aexlib = aexlib || {};
      * Delete the record of this instance.
      *
      * @method remove
-     * @param opt_validateRevision {boolean} Set true if revision should be validated.
+     * @param opt_params {guestSpaceId:'foo', validation:true|false} Set validation to true
+     * if revision should be validated.
      * @return {Promise} Return Promise.resolve(resp) if it succeed to delete a request.
      * If it failed, then Promise.reject(error) is returned.
      */
-    k.Record.prototype.remove = function(opt_validateRevision) {
+    k.Record.prototype.remove = function(opt_params) {
         var rid = this.recordId();
         var params;
         var self = this;
-        var validateRevision = k.Record._isValidationEnabled(opt_validateRevision);
+        var validateRevision = k.Record._isValidationEnabled(opt_params);
 
         if (k._isDefined(rid)) {
             params = validateRevision ?
                 {app:this.app.appId, ids:[rid], revisions:[this.revision()]} :
                 {app:this.app.appId, ids:[rid]};
-            return k._fetch('/k/v1/records', 'DELETE', params).then(function(resp) {
+            return k._fetch(k._requestPath('records', opt_params), 'DELETE', params).then(function(resp) {
                 return resp;
             });
         } else {

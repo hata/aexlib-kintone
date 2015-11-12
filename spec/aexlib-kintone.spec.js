@@ -130,7 +130,7 @@ describe("aexlib.kintone tests", function() {
 
   it("aexlib.kintone.App.fetchApps", function(done) {
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
-      expect(url).toEqual('/k/v1/apps');
+      expect(url).toEqual('/k/guest/foo/v1/apps');
       expect(params.ids, [1]);
       expect(params.codes, [2]);
       expect(params.name, 'test');
@@ -138,7 +138,7 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve, reject) { reject({}); });
     });
 
-    k.App.fetchApps({ids:[1],codes:[2],name:'test',spaceIds:[3]}).then(function() {}, function(error) {
+    k.App.fetchApps({ids:[1],codes:[2],name:'test',spaceIds:[3], guestSpaceId:'foo'}).then(function() {}, function(error) {
       done();
     });
   });
@@ -311,7 +311,7 @@ describe("aexlib.kintone tests", function() {
       }
     });
 
-    k._recursiveUpdate(updateParams, records, false).then(function(resp) {
+    k._recursiveUpdate(updateParams, records, {validation:false}).then(function(resp) {
       expect(resp.records.length).toEqual(4);
       expect(resp.records[0]).toEqual({id:'1', revision:'5'});
       expect(resp.records[1]).toEqual({id:'2', revision:'6'});
@@ -340,6 +340,16 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.App.fetchApp fetch app info with a guest space id", function(done) {
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/app');
+      return new Promise(function(resolve) { resolve({appId: '1'}); });
+    });
+
+    a.fetchApp({guestSpaceId:'foo'}).then(function(info) {
+      done();
+    });
+  });
 
   it("aexlib.kintone.App.fetchApp may return error message when there is a problem.", function(done) {
     var app = k.App.getApp('1');
@@ -391,6 +401,19 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.App.fetchFields fetch field properties with preview and guestSpaceId.", function(done) {
+    var app = k.App.getApp('1');
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/5/v1/preview/app/form/fields');
+      return new Promise(function(resolve) { resolve({properties: { 'foo': {code:'foo'} } }); });
+    });
+
+    app.fetchFields({guestSpaceId:'5', preview:true}).then(function(info) {
+      expect(app.fields.properties.foo.code).toEqual('foo');
+      done();
+    });
+  });
 
   it("aexlib.kintone.App.fetchFields may return error message when there is a problem.", function(done) {
     var app = k.App.getApp('1');
@@ -452,6 +475,21 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.App.fetchSettings fetch settings for preview and guest space.", function(done) {
+    var app = k.App.getApp('1');
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/5/v1/preview/app/settings');
+      return new Promise(function(resolve) { resolve({name:'Foo'}); });
+    });
+
+    app.fetchSettings({preview:true, guestSpaceId:'5'}).then(function(resp) {
+      expect(resp.name).toEqual('Foo');
+      expect(app.settings.name).toEqual('Foo');
+      done();
+    });
+  });
+
   it("aexlib.kintone.App.fetchSettings may return error message when there is a problem.", function(done) {
     var app = k.App.getApp('1');
     expect(app.settings).toBeUndefined();
@@ -495,6 +533,21 @@ describe("aexlib.kintone tests", function() {
     });
 
     app.fetchLayout({preview:true}).then(function(resp) {
+      expect(app.layout.revision).toEqual('2');
+      expect(app.layout.layout[0].type).toEqual('ROW');
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.fetchLayout fetch layout info for preview and guestSpaceId.", function(done) {
+    var app = k.App.getApp('1');
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/5/v1/preview/app/form/layout');
+      return new Promise(function(resolve) { resolve({revision:'2', layout:[{type:'ROW'}]}); });
+    });
+
+    app.fetchLayout({guestSpaceId:'5', preview:true}).then(function(resp) {
       expect(app.layout.revision).toEqual('2');
       expect(app.layout.layout[0].type).toEqual('ROW');
       done();
@@ -551,6 +604,21 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.App.fetchViews fetch views info for preview and guestSpaceId.", function(done) {
+    var result = {views:{'viewNameKey':{name:'viewNameKey'}}};
+    var app = k.App.getApp('1');
+    expect(app.views).toBeUndefined();
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/5/v1/preview/app/views');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    app.fetchViews({guestSpaceId:'5', preview:true}).then(function(resp) {
+      done();
+    });
+  });
+
   it("aexlib.kintone.App.fetchViews may return error message when there is a problem.", function(done) {
     var app = k.App.getApp('1');
     expect(app.layout).toBeUndefined();
@@ -597,6 +665,22 @@ describe("aexlib.kintone tests", function() {
     });
 
     app.fetchForm({preview:true}).then(function(resp) {
+      expect(resp.properties).toEqual(result.properties);
+      expect(app.form.properties[0].code).toEqual('foo');
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.fetchForm fetch form info for preview and a guestSpaceId.", function(done) {
+    var result = {properties:[{code:'foo'}]};
+    var app = k.App.getApp('1');
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/preview/form');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    app.fetchForm({guestSpaceId:'foo', preview:true}).then(function(resp) {
       expect(resp.properties).toEqual(result.properties);
       expect(app.form.properties[0].code).toEqual('foo');
       done();
@@ -1298,6 +1382,19 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.Record.save creates a new data for a guest space if there is no recordId.", function(done) {
+    var r = a.newRecord({foo:{value:'bar'}});
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/record');
+      return new Promise(function(resolve) { resolve({id: "11", revision:"2"}); });
+    });
+
+    r.save(null, null, {guestSpaceId:'foo'}).then(function(resp) {
+      done();
+    });
+  });
+
   it("aexlib.kintone.Record.save updates data if it has recordId.", function(done) {
     var r = a.newRecord({'$id':{value:'2'}, '$revision':{value:'3'}, 'foo':{value:'foo'}});
     r.val('foo', 'bar');
@@ -1335,11 +1432,34 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve) { resolve({revision:"4"}); });
     });
 
-    r.save(null, null, false).then(function(resp) {
+    r.save(null, null, {validation:false}).then(function(resp) {
       expect(resp.revision).toEqual('4');
       expect(r.recordId()).toEqual(2);
       expect(r.revision()).toEqual(4);
       expect(resp).toEqual({revision:"4"});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Record.save(false) updates data without revision.", function(done) {
+    var r = a.newRecord({'$id':{value:'2'}, 'foo':{value:'foo'}});
+    r.val('foo', 'bar');
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/record');
+      return new Promise(function(resolve) { resolve({revision:"4"}); });
+    });
+
+    r.save(null, null, {guestSpaceId:'foo', validation:false}).then(function(resp) {
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Record.save(null, null, {validation:true}) doesn't update data without revision.", function(done) {
+    var r = a.newRecord({'$id':{value:'2'}, 'foo':{value:'foo'}});
+    r.val('foo', 'bar');
+    r.save(null, null, {validation:true}).then(function() {}, function(error) {
+      expect(error.message).toBeDefined();
       done();
     });
   });
@@ -1391,7 +1511,7 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
-  it("aexlib.kintone.Record.remove(false) delete data without revision.", function(done) {
+  it("aexlib.kintone.Record.remove({validation:false}) delete data without revision.", function(done) {
     var r = a.newRecord({'$id':{value:'2'}});
 
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
@@ -1403,7 +1523,7 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve) { resolve({}); });
     });
 
-    r.remove(false).then(function(resp) {
+    r.remove({validation:false}).then(function(resp) {
       expect(resp).toEqual({});
       done();
     });
@@ -1446,13 +1566,15 @@ describe("aexlib.kintone tests", function() {
     ];
 
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/records');
+      expect(request).toEqual('DELETE');
       expect(params.app).toEqual('1');
       expect(params.ids).toEqual([2, 5]);
       expect(params.revisions).toBeUndefined();
       return new Promise(function(resolve) { resolve({}); });
     });
 
-    k.Record.removeAll(records, false).then(function(resp) {
+    k.Record.removeAll(records, {guestSpaceId:'foo', validation:false}).then(function(resp) {
       expect(resp).toEqual({});
       done();
     });
@@ -1658,6 +1780,22 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.Record.createAll creates records for a guest space id.", function(done) {
+    var records = [
+      a.newRecord({'foo':{value:'bar'}}),
+      a.newRecord({'foo':{value:'hoge'}})
+    ];
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/records');
+      return new Promise(function(resolve) { resolve({ids:['1','2'], revisions:['3','4']}); });
+    });
+
+    k.Record.createAll(records, {guestSpaceId:'foo'}).then(function(resp) {
+      done();
+    });
+  });
+
   it("aexlib.kintone.Record.updateAll updates records.", function(done) {
     var records = [
       a.newRecord({'foo':{value:'bar'}, '$id':{value:'1'}, '$revision':{value:'3'}}),
@@ -1682,6 +1820,24 @@ describe("aexlib.kintone tests", function() {
       expect(resp).toEqual({records:respRecords});
       expect(records[0].revision()).toEqual(5);
       expect(records[1].revision()).toEqual(6);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Record.updateAll updates records for a guest space.", function(done) {
+    var records = [
+      a.newRecord({'foo':{value:'bar'}, '$id':{value:'1'}, '$revision':{value:'3'}}),
+      a.newRecord({'foo':{value:'bar'}, '$id':{value:'2'}, '$revision':{value:'4'}})
+    ];
+    records = records.map(function(record) { record.val('foo', 'piyo'); return record;});
+    var respRecords = [{id:'1', revision:'5'}, {id:'2',revision:'6'}];
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/records');
+      return new Promise(function(resolve) { resolve({records:respRecords}); });
+    });
+
+    k.Record.updateAll(records, {guestSpaceId:'foo'}).then(function(resp) {
       done();
     });
   });
@@ -1719,14 +1875,14 @@ describe("aexlib.kintone tests", function() {
     var respRecords = [{id:'1', revision:'5'}, {id:'2',revision:'6'}];
 
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
-      expect(url).toEqual('/k/v1/records');
+      expect(url).toEqual('/k/guest/foo/v1/records');
       expect(request).toEqual('PUT');
       expect(params.app).toEqual('1');
       expect(params.records).toEqual(paramRecords);
       return new Promise(function(resolve) { resolve({records:respRecords}); });
     });
 
-    k.Record.saveAll(records, false).then(function(resp) {
+    k.Record.saveAll(records, {guestSpaceId:'foo', validation:false}).then(function(resp) {
       expect(resp).toEqual({records:respRecords});
       done();
     });
@@ -1916,20 +2072,18 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
-  it("aexlib.kintone.App.updateSettings can update settings from this.settings.", function(done) {
+  it("aexlib.kintone.App.updateSettings can update settings with guestSpaceId.", function(done) {
     var newSettings = {app:'id', value:'foo'};
     var result = {};
 
-    a.settings = newSettings;
-
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
-      expect(url).toEqual('/k/v1/preview/app/settings');
+      expect(url).toEqual('/k/guest/5/v1/preview/app/settings');
       expect(request).toEqual('PUT');
       expect(params).toEqual({app:'1', value:'foo'});
       return new Promise(function(resolve) { resolve(result); });
     });
 
-    a.updateSettings().then(function(resp) {
+    a.updateSettings(newSettings, {guestSpaceId:'5'}).then(function(resp) {
       expect(resp).toEqual(result);
       done();
     });
@@ -2012,6 +2166,21 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.App.updateLayout can update layout with guest space id.", function(done) {
+    var newLayout = {app:'id', revision:'2'};
+    var result = {};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/preview/app/form/layout');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.updateLayout(newLayout, {guestSpaceId:'foo'}).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
   it("aexlib.kintone.App.updateViews can update views from the argument.", function(done) {
     var newViews = {app:'id', revision:'2'};
     var result = {foo:'bar'};
@@ -2065,6 +2234,21 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.App.createApp creates a new app for a guest space.", function(done) {
+    var newAppId = '2';
+    var result = {app:'2', revision:'1'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/preview/app');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    k.App.createApp('bar', null, null, {guestSpaceId:'foo'}).then(function(newApp) {
+      expect(newApp.appId).toEqual(newAppId);
+      done();
+    });
+  });
+
   it("aexlib.kintone.App._isIgnoreField returns true when field is built-in and cannot be created/updated/deleted.", function() {
     expect(k.App._isIgnoreField({type:'STATUS'})).toEqual(true);
     expect(k.App._isIgnoreField({type:'STATUS_ASSIGNEE'})).toEqual(true);
@@ -2100,6 +2284,27 @@ describe("aexlib.kintone tests", function() {
     });
 
     a.createFields(fields).then(function(resp) {
+      expect(resp).toEqual({revision:'3'});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.createFields adds fields with guestSpaceId.", function(done) {
+    var fields = {properties:{
+      foo:{code:'foo', type:'SINGLE_LINE_TEXT'},
+      builtIn: {code:'builtIn', type:'CREATOR'},
+      ignore: {code:'ignore', type:'STATUS'}
+    }};
+    var result = {revision:'3'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/preview/app/form/fields');
+      expect(request).toEqual('POST');
+      expect(params).toEqual({app:'1', properties:{foo:{code:'foo', type:'SINGLE_LINE_TEXT'}}});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.createFields(fields, {guestSpaceId:'foo'}).then(function(resp) {
       expect(resp).toEqual({revision:'3'});
       done();
     });
@@ -2177,6 +2382,26 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+
+  it("aexlib.kintone.App.updateFields update user fields when userFields is true with guestSpaceId.", function(done) {
+    var fields = {properties:{
+      foo:{code:'foo', type:'SINGLE_LINE_TEXT'},
+      builtIn: {code:'builtIn', type:'CREATOR'},
+      ignore: {code:'ignore', type:'STATUS'}
+    }};
+    var result = {revision:'3'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/preview/app/form/fields');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.updateFields(fields, {userFields:true, guestSpaceId:'foo'}).then(function(resp) {
+      expect(resp).toEqual({revision:'3'});
+      done();
+    });
+  });
+
   it("aexlib.kintone.App.updateFields does not update when there is no option.", function(done) {
     var fields = {properties:{
       foo:{code:'foo', type:'SINGLE_LINE_TEXT'},
@@ -2223,6 +2448,21 @@ describe("aexlib.kintone tests", function() {
     });
 
     a.removeFields(fields).then(function(resp) {
+      expect(resp).toEqual({revision:'3'});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.removeFields remove fields with guestSpaceId.", function(done) {
+    var fields = ['foo', 'bar'];
+    var result = {revision:'3'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/preview/app/form/fields');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.removeFields(fields, {guestSpaceId:'foo'}).then(function(resp) {
       expect(resp).toEqual({revision:'3'});
       done();
     });
@@ -2299,6 +2539,20 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
+  it("aexlib.kintone.App.deployAll deploy an app with revert false and guestSpaceId options.", function(done) {
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/preview/app/deploy');
+      expect(params).toEqual({apps:[{app:'1'}]});
+      return new Promise(function(resolve) { resolve(); });
+    });
+
+    // No response from manual.
+    k.App.deployAll(['1'], {guestSpaceId:'foo', revert:false}).then(function(resp) {
+      expect(resp).toBeUndefined();
+      done();
+    });
+  });
+
   it("aexlib.kintone.App.deployAll deploy error when invalid value is set.", function(done) {
     k.App.deployAll(null, {revert:false}).then(function() {}, function(error) {
       expect(error.message).toBeDefined();
@@ -2333,6 +2587,22 @@ describe("aexlib.kintone tests", function() {
     });
 
     k.App.statusAll(k.App.getApp('1')).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.statusAll can handle an object like App instead of Array.", function(done) {
+    var result = {apps:[{app:1, status:'PROCESSING'}]};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/preview/app/deploy');
+      expect(request).toEqual('GET');
+      expect(params).toEqual({apps:[1]});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    k.App.statusAll(k.App.getApp('1'), {guestSpaceId:'foo'}).then(function(resp) {
       expect(resp).toEqual(result);
       done();
     });
@@ -2463,6 +2733,13 @@ describe("aexlib.kintone tests", function() {
       expect(error.message).toEqual('failed');
       done();
     });
+  });
+
+  it("aexlib.kintone._requestPath generates a request path from command and space id.", function() {
+    expect(k._requestPath('records')).toEqual('/k/v1/records');
+    expect(k._requestPath('records', {guestSpaceId:'5'})).toEqual('/k/guest/5/v1/records');
+    expect(k._requestPath('records', {preview:true})).toEqual('/k/v1/preview/records');
+    expect(k._requestPath('records', {guestSpaceId:'5', preview:'true'})).toEqual('/k/guest/5/v1/preview/records');
   });
 });
 
