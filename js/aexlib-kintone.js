@@ -42,7 +42,7 @@ var aexlib = aexlib || {};
     k._NO_RECORD_FOUND = 'No record found';
     k._NO_LABEL_FOUND = 'No label found';
     k._NO_FIELDS_FOUND = 'No fields found. Use fetchFields to get it.';
-    k._NO_APP_PROPERTY_FOUND = 'No App property or argument found. property name:';
+    k._NO_NEW_CONFIG_FOUND = 'No new config found.';
     k._NO_PARAMS_FOUND = 'No parameters found. Please set params option.';
     k._UNKNOWN_UPDATE_REQUEST_FOUND_ERROR = 'Unknown update request found.';
     k._CANNOT_USE_BOTH_POST_AND_PUT_REQUESTS = 'Cannot use both POST and PUT requests.';
@@ -509,8 +509,7 @@ var aexlib = aexlib || {};
      * @return {Promise} Return result.
      */
     k.App.prototype.updateSettings = function(newSettings, opt_params) {
-        return this._updateConfig(k._previewRequestPath('app/settings', opt_params),
-            'settings', newSettings);
+        return this._updateConfig(k._previewRequestPath('app/settings', opt_params), newSettings);
     };
 
     /**
@@ -632,8 +631,7 @@ var aexlib = aexlib || {};
      * @return {Promise} Promise.resolve(resp) is returned when it is succeeded.
      */
     k.App.prototype.updateLayout = function(newLayout, opt_params) {
-        return this._updateConfig(k._previewRequestPath('app/form/layout', opt_params),
-            'layout', newLayout);
+        return this._updateConfig(k._previewRequestPath('app/form/layout', opt_params), newLayout);
     };
 
     /**
@@ -657,8 +655,7 @@ var aexlib = aexlib || {};
      * @return {Promise} Promise.resolve(resp) is returned when it is succeeded.
      */
     k.App.prototype.updateViews = function(newViews, opt_params) {
-        return this._updateConfig(k._previewRequestPath('app/views', opt_params),
-            'views', newViews);
+        return this._updateConfig(k._previewRequestPath('app/views', opt_params), newViews);
     };
 
     /**
@@ -834,13 +831,14 @@ var aexlib = aexlib || {};
         });
     };
 
-    k.App.prototype._updateConfig = function(url, propName, opt_newConfig) {
-        // TODO: this.settings should be copied.
+    // It maybe required to refactor this method because the current
+    // code is to set revision after successful call. However, we may
+    // not be required to do it.
+    k.App.prototype._updateConfig = function(url, newConfig) {
         var self = this;
-        var newConfig = opt_newConfig ? opt_newConfig : this[propName];
         var oldRevision;
         if (k._isUndefined(newConfig)) {
-            return k._reject({message:k._NO_APP_PROPERTY_FOUND + propName});
+            return k._reject({message:k._NO_NEW_CONFIG_FOUND});
         }
 
         if (k._isDefined(newConfig.revision)) {
@@ -850,9 +848,6 @@ var aexlib = aexlib || {};
 
         newConfig.app = this.appId;
 
-        // TODO: When a new configuration is set, then set a new revision from the response.
-        // In this case, if there is no config is set(eg. this.settings is undefined/null),
-        // then it should also be updated.
         return k._fetch(url, 'PUT', newConfig).then(function(resp) {
             newConfig.revision = resp.revision;
             delete newConfig.app;

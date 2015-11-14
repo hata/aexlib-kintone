@@ -2123,36 +2123,16 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
-  it("aexlib.kintone.App.updateSettings can update settings from this.settings.", function(done) {
-    var newSettings = {value:'foo', revision:'2'};
-    var result = {revision:'3'};
-
-    a.settings = newSettings;
-
-    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
-      expect(url).toEqual('/k/v1/preview/app/settings');
-      expect(request).toEqual('PUT');
-      expect(params).toEqual({app:'1', value:'foo'});
-      return new Promise(function(resolve) { resolve(result); });
-    });
-
-    a.updateSettings().then(function(resp) {
-      expect(resp).toEqual(result);
-      expect(a.settings.app).toBeUndefined();
-      expect(a.settings.revision).toEqual('3');
-      done();
-    });
-  });
-
   it("aexlib.kintone.App.updateSettings return Promise.reject when failing the request.", function(done) {
-    a.settings = {value:'foo', revision:'2'};
+    newSettings = {value:'foo', revision:'2'};
+    a.settings = newSettings;
 
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(params).toEqual({app:'1', value:'foo'});
       return new Promise(function(resolve, reject) { reject({message:'failed'}); });
     });
 
-    a.updateSettings().then(function() {}, function(error) {
+    a.updateSettings(newSettings).then(function() {}, function(error) {
       expect(error.message).toBeDefined();
       expect(a.settings.app).toBeUndefined();
       expect(a.settings.revision).toEqual('2');
@@ -2161,14 +2141,15 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone.App.updateSettings return Promise.reject and no revision doesn't touch settings.", function(done) {
-    a.settings = {value:'foo'};
-      
+    newSettings = {value:'foo'};
+    a.settings = newSettings;
+
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(params).toEqual({app:'1', value:'foo'});
       return new Promise(function(resolve, reject) { reject({message:'failed'}); });
     }); 
 
-    a.updateSettings().then(function() {}, function(error) {
+    a.updateSettings(newSettings).then(function() {}, function(error) {
       expect(error.message).toEqual('failed');
       expect(a.settings.app).toBeUndefined();
       expect(a.settings.revision).toBeUndefined();
