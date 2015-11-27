@@ -931,11 +931,11 @@ var aexlib = aexlib || {};
         // TODO: This may cause a bug when call first and then find.
         this.limit(maxRecordNum);
 
-        return this.find(params).then(function(records) {
-            return records.length > 1 ?
-                records :
-                (records.length === 1 ?
-                    records[0] :
+        return this.find(params).then(function(resp) {
+            return resp.records.length > 1 ?
+                resp.records :
+                (resp.records.length === 1 ?
+                    resp.records[0] :
                     (maxRecordNum > 1 ? [] : undefined ));
         });
     };
@@ -958,11 +958,17 @@ var aexlib = aexlib || {};
      */
     k.Query.prototype.find = function(opt_params) {
         var self = this;
+        var totalCountFlag = k._isDefined(this._totalCountFlag) ? this._totalCountFlag : false;
+        var total = 0;
         var toParamsHandler = function(offset, batchSize) {
-            return {app: self.app.appId, fields: self._queryFields, query: self._buildQuery(offset, batchSize) };
+            return {app: self.app.appId, fields: self._queryFields,
+                    query: self._buildQuery(offset, batchSize), totalCount:totalCountFlag };
         };
         var toResultHandler = function(resp, cumulativeResult) {
             // TODO: resp.totalCount can get here and then return it later ?
+            if (totalCountFlag) {
+                total = resp.totalCount;
+            }
             return cumulativeResult.concat(self._applyFilters(resp.records));
         };
         var startOffset = k._isDefined(this._offset) ? this._offset : 0;
@@ -976,7 +982,8 @@ var aexlib = aexlib || {};
         };
 
         return k._recursiveFetch(fetchParams, startOffset, maxRecordNum).then(function(records) {
-            return records.map(function(rec) { return self.app.newRecord(rec); });
+            var result = records.map(function(rec) { return self.app.newRecord(rec); });
+            return totalCountFlag ? {records:result, totalCount:total} : {records:result, totalCont:null};
         });
     };
 
@@ -1285,17 +1292,17 @@ var aexlib = aexlib || {};
     };
 
 
-    // TODO:
     /**
      * Enable to return totalCount property.
      * When this method is set to call records, then
      * returned value is {records:Array of Records, totalCount:totalCountValue}
-     * instead of Records.
+     * instead of Records only.
      * @method totalCount
+     * @param opt_totalCountFlag {boolean} Set the flag explicitly.
      * @return {Query} Return Query(this) instance.
      */
-    k.Query.prototype.totalCount = function() {
-        this._totalCountFlag = true;
+    k.Query.prototype.totalCount = function(opt_totalCountFlag) {
+        this._totalCountFlag = k._isDefined(opt_totalCountFlag) ? (opt_totalCountFlag ? true : false) : true;
         return this;
     };
 

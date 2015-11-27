@@ -823,10 +823,10 @@ describe("aexlib.kintone tests", function() {
         ] }); });
     });
 
-    a.select().find().then(function(records) {
-      expect(records[0].record.foo.code).toEqual('foo');
-      expect(records[1].record.bar.code).toEqual('bar');
-      expect(records[2].record.hoge.code).toEqual('hoge');
+    a.select().find().then(function(resp) {
+      expect(resp.records[0].record.foo.code).toEqual('foo');
+      expect(resp.records[1].record.bar.code).toEqual('bar');
+      expect(resp.records[2].record.hoge.code).toEqual('hoge');
       done();
     });
   });
@@ -840,8 +840,8 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve) { resolve({records: [] }); });
     });
 
-    a.select().find().then(function(records) {
-      expect(records).toEqual([]);
+    a.select().find().then(function(resp) {
+      expect(resp.records).toEqual([]);
       done();
     });
   });
@@ -855,8 +855,8 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve) { resolve({records: [] }); });
     });
 
-    a.select().offset(10).limit(20).find().then(function(records) {
-      expect(records).toEqual([]);
+    a.select().offset(10).limit(20).find().then(function(resp) {
+      expect(resp.records).toEqual([]);
       done();
     });
   });
@@ -867,8 +867,8 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve) { resolve({records: [] }); });
     });
 
-    a.select().find({guestSpaceId:'foo'}).then(function(records) {
-      expect(records).toEqual([]);
+    a.select().find({guestSpaceId:'foo'}).then(function(resp) {
+      expect(resp.records).toEqual([]);
       done();
     });
   });
@@ -895,12 +895,41 @@ describe("aexlib.kintone tests", function() {
         return record;
     };
 
-    a.select().filter(f).map(f2).find().then(function(records) {
-      expect(records.length).toEqual(1);
-      expect(records[0].record.foo.value).toEqual('foo1');
-      expect(records[0].record.foo.x).toEqual('bar');
+    a.select().filter(f).map(f2).find().then(function(resp) {
+      expect(resp.records.length).toEqual(1);
+      expect(resp.records[0].record.foo.value).toEqual('foo1');
+      expect(resp.records[0].record.foo.x).toEqual('bar');
       done();
     });
+  });
+
+  it("aexlib.kintone.Query.find with totalCount returns totalCount.", function(done) {
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/records');
+      expect(request).toEqual('GET');
+      expect(params.app).toEqual('1');
+      expect(params.totalCount).toEqual(true);
+      return new Promise(function(resolve) { resolve({records: [], totalCount:1 }); });
+    });
+
+    a.select().totalCount().find().then(function(resp) {
+      expect(resp.records).toEqual([]);
+      expect(resp.totalCount).toEqual(1);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Query.totalCount can set the flag for totalCount.", function() {
+    expect(a.select()._totalCountFlag).toBeUndefined();
+    expect(a.select().totalCount()._totalCountFlag).toEqual(true);
+  });
+
+  it("aexlib.kintone.Query.totalCount can set the enable flag to return totalCount.", function() {
+    expect(a.select().totalCount(true)._totalCountFlag).toEqual(true);
+  });
+
+  it("aexlib.kintone.Query.totalCount(false) can set the disable flag to return totalCount.", function() {
+    expect(a.select().totalCount(false)._totalCountFlag).toEqual(false);
   });
 
   it("aexlib.kintone.App.select can start query.", function() {
