@@ -712,6 +712,215 @@ describe("aexlib.kintone tests", function() {
     expect(a.labelAccess()).toEqual(true);
   });
 
+  it("aexlib.kintone.App.fetchAppACL", function(done) {
+    var result = {revision:'2', rights:[]};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/app/acl');
+      expect(request).toEqual('GET');
+      expect(params.app).toEqual('1');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.fetchAppACL().then(function(resp) {
+      expect(resp).toEqual(result);
+      expect(a.appACL).toBeDefined();
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.fetchAppACL for guest and preview", function(done) {
+    var result = {revision:'2', rights:[]};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/hoge/v1/preview/app/acl');
+      expect(request).toEqual('GET');
+      expect(params.app).toEqual('1');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.fetchAppACL({guestSpaceId:'hoge', preview:true}).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.fetchRecordACL", function(done) {
+    var result = {revision:'2', rights:[]};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/record/acl');
+      expect(request).toEqual('GET');
+      expect(params.app).toEqual('1');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.fetchRecordACL().then(function(resp) {
+      expect(resp).toEqual(result);
+      expect(a.recordACL).toBeDefined();
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.fetchRecordACL for guest and preview", function(done) {
+    var result = {revision:'2', rights:[]};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/hoge/v1/preview/record/acl');
+      expect(request).toEqual('GET');
+      expect(params.app).toEqual('1');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.fetchRecordACL({guestSpaceId:'hoge', preview:true}).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.fetchFieldACL", function(done) {
+    var result = {revision:'2', rights:[]};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/field/acl');
+      expect(request).toEqual('GET');
+      expect(params.app).toEqual('1');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.fetchFieldACL().then(function(resp) {
+      expect(resp).toEqual(result);
+      expect(a.fieldACL).toBeDefined();
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.fetchFieldACL for guest and preview", function(done) {
+    var result = {revision:'2', rights:[]};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/hoge/v1/preview/field/acl');
+      expect(request).toEqual('GET');
+      expect(params.app).toEqual('1');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.fetchFieldACL({guestSpaceId:'hoge', preview:true}).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+
+  it("aexlib.kintone.App.updateAppACL", function(done) {
+    var result = {revision:'3'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/app/acl');
+      expect(request).toEqual('PUT');
+      expect(params.app).toEqual('1');
+      expect(params.rights).toEqual([]);
+      expect(params.revision).toEqual(-1);
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.updateAppACL({rights:[]}).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.updateAppACL", function(done) {
+    var result = {revision:'6'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/hoge/v1/preview/app/acl');
+      expect(request).toEqual('PUT');
+      expect(params.app).toEqual('1');
+      expect(params.rights).toEqual([]);
+      expect(params.revision).toEqual('5');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.updateAppACL({rights:[], revision:'5'}, {guestSpaceId:'hoge', preview:true}).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.updateRecordACL", function(done) {
+    var result = {revision:'3'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/record/acl');
+      expect(request).toEqual('PUT');
+      expect(params.app).toEqual('1');
+      expect(params.rights).toEqual([]);
+      expect(params.revision).toEqual(-1);
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.updateRecordACL({rights:[]}).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.updateRecordACL", function(done) {
+    var result = {revision:'6'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/hoge/v1/preview/record/acl');
+      expect(request).toEqual('PUT');
+      expect(params.app).toEqual('1');
+      expect(params.rights).toEqual([]);
+      expect(params.revision).toEqual('5');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.updateRecordACL({rights:[], revision:'5'}, {guestSpaceId:'hoge', preview:true}).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.updateFieldACL", function(done) {
+    var result = {revision:'3'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/field/acl');
+      expect(request).toEqual('PUT');
+      expect(params.app).toEqual('1');
+      expect(params.rights).toEqual([]);
+      expect(params.revision).toEqual(-1);
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.updateFieldACL({rights:[]}).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.App.updateFieldACL", function(done) {
+    var result = {revision:'6'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/hoge/v1/preview/field/acl');
+      expect(request).toEqual('PUT');
+      expect(params.app).toEqual('1');
+      expect(params.rights).toEqual([]);
+      expect(params.revision).toEqual('5');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.updateFieldACL({rights:[], revision:'5'}, {guestSpaceId:'hoge', preview:true}).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+
   it("aexlib.kintone.Query.first fetch a record and then return Promise.", function(done) {
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(url).toEqual('/k/v1/records');

@@ -831,6 +831,93 @@ var aexlib = aexlib || {};
         });
     };
 
+    /**
+     * Fetch app/acl from kintone and return Promise.
+     * @method fetchAppACL
+     * @param opt_params {guestSpaceId:'foo', preview:boolean}
+     * Set an option for request path.
+     * @retrun {Promise} Promise is returned with response like
+     * {rights:...}
+     */
+    k.App.prototype.fetchAppACL = function(opt_params) {
+        return k._fetch(k._requestPath('app/acl', opt_params),
+            'GET', {app:this.appId}, this, 'appACL');
+    };
+
+    /**
+     * Fetch record/acl from kintone and return Promise.
+     * @method fetchRecordACL
+     * @param opt_params {guestSpaceId:'foo', preview:boolean}
+     * Set an option for request path.
+     * @retrun {Promise} Promise is returned with response like
+     * {rights:...}
+     */
+    k.App.prototype.fetchRecordACL = function(opt_params) {
+        return k._fetch(k._requestPath('record/acl', opt_params),
+            'GET', {app:this.appId}, this, 'recordACL');
+    };
+
+    /**
+     * Fetch field/acl from kintone and return Promise.
+     * @method fetchFieldACL
+     * @param opt_params {guestSpaceId:'foo', preview:boolean}
+     * Set an option for request path.
+     * @retrun {Promise} Promise is returned with response like
+     * {rights:...}
+     */
+    k.App.prototype.fetchFieldACL = function(opt_params) {
+        return k._fetch(k._requestPath('field/acl', opt_params),
+            'GET', {app:this.appId}, this, 'fieldACL');
+    };
+
+    /**
+     * Update app/acl in kintone and return Promise.
+     * @method updateAppACL
+     * @param acl {JS Object} acl is like {rights:..., revision:'5'}.
+     * If you set revision, then it is validated. Otherwise, revision
+     * is not required.
+     * @param opt_params {guestSpaceId:'foo', preview:boolean}
+     * Set an option for request path.
+     * @retrun {Promise} Promise is returned with {revision:...}.
+     */
+    k.App.prototype.updateAppACL = function(acl, opt_params) {
+        var revision = k._isDefined(acl.revision) ? acl.revision : -1;
+        return k._fetch(k._requestPath('app/acl', opt_params),
+            'PUT', {app:this.appId, rights:acl.rights, revision:revision});
+    };
+
+    /**
+     * Update record/acl in kintone and return Promise.
+     * @method updateRecordACL
+     * @param acl {JS Object} acl is like {rights:..., revision:'5'}.
+     * If you set revision, then it is validated. Otherwise, revision
+     * is not required.
+     * @param opt_params {guestSpaceId:'foo', preview:boolean}
+     * Set an option for request path.
+     * @retrun {Promise} Promise is returned with {revision:...}.
+     */
+    k.App.prototype.updateRecordACL = function(acl, opt_params) {
+        var revision = k._isDefined(acl.revision) ? acl.revision : -1;
+        return k._fetch(k._requestPath('record/acl', opt_params),
+            'PUT', {app:this.appId, rights:acl.rights, revision:revision});
+    };
+
+    /**
+     * Update field/acl in kintone and return Promise.
+     * @method updateFieldACL
+     * @param acl {JS Object} acl is like {rights:..., revision:'5'}.
+     * If you set revision, then it is validated. Otherwise, revision
+     * is not required.
+     * @param opt_params {guestSpaceId:'foo', preview:boolean}
+     * Set an option for request path.
+     * @retrun {Promise} Promise is returned with {revision:...}.
+     */
+    k.App.prototype.updateFieldACL = function(acl, opt_params) {
+        var revision = k._isDefined(acl.revision) ? acl.revision : -1;
+        return k._fetch(k._requestPath('field/acl', opt_params),
+            'PUT', {app:this.appId, rights:acl.rights, revision:revision});
+    };
+
     // It maybe required to refactor this method because the current
     // code is to set revision after successful call. However, we may
     // not be required to do it.
