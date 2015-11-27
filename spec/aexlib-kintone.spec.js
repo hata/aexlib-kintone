@@ -810,7 +810,7 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
-  it("aexlib.kintone.Query.fetch fetch records and then return Promise.", function(done) {
+  it("aexlib.kintone.Query.find fetch records and then return Promise.", function(done) {
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(url).toEqual('/k/v1/records');
       expect(request).toEqual('GET');
@@ -831,7 +831,7 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
-  it("aexlib.kintone.Query.fetch fetch records and then return Promise.", function(done) {
+  it("aexlib.kintone.Query.find fetch records and then return Promise.", function(done) {
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(url).toEqual('/k/v1/records');
       expect(request).toEqual('GET');
@@ -846,7 +846,7 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
-  it("aexlib.kintone.Query.fetch fetch records and then return Promise.", function(done) {
+  it("aexlib.kintone.Query.find fetch records and then return Promise.", function(done) {
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(url).toEqual('/k/v1/records');
       expect(request).toEqual('GET');
@@ -869,6 +869,36 @@ describe("aexlib.kintone tests", function() {
 
     a.select().find({guestSpaceId:'foo'}).then(function(records) {
       expect(records).toEqual([]);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Query.find can apply filters to records and then return Promise.", function(done) {
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/records');
+      expect(request).toEqual('GET');
+      expect(params.query).toEqual('limit 100 offset 0');
+      expect(params.app).toEqual('1');
+      return new Promise(function(resolve) { resolve({records: [
+          { 'foo' : {code:'foo', value:'foo1'} },
+          { 'foo' : {code:'foo', value:'foo2'} },
+          { 'foo' : {code:'foo', value:'foo3'} }
+        ] }); });
+    });
+
+    var f = function(record) {
+        return record.foo.value === 'foo1';
+    };
+
+    var f2 = function(record) {
+        record.foo.x = 'bar';
+        return record;
+    };
+
+    a.select().filter(f).map(f2).find().then(function(records) {
+      expect(records.length).toEqual(1);
+      expect(records[0].record.foo.value).toEqual('foo1');
+      expect(records[0].record.foo.x).toEqual('bar');
       done();
     });
   });
@@ -1200,6 +1230,57 @@ describe("aexlib.kintone tests", function() {
     expect(q.notInList('foo', r).toString()).toEqual('foo not in ("bar","hoge")');
   });
 
+  it("aexlib.kintone.Query.filter can apply a filter function to a query result", function() {
+    var f = function(x) { return x > 1; };
+    q.filter(f);
+    expect(q._applyFilters([1,2,3])).toEqual([2,3]);
+  });
+
+  it("aexlib.kintone.Query.filter can apply multiple filters.", function() {
+    var f = function(x) { return x > 1; };
+    var f2 = function(x) { return x < 5; };
+    q.filter([f, f2]);
+    expect(q._applyFilters([1,2,3,4,5])).toEqual([2,3,4]);
+  });
+
+  it("aexlib.kintone.Query.filter can use several times for multiple filters.", function() {
+    var f = function(x) { return x > 1; };
+    var f2 = function(x) { return x < 5; };
+    q.filter([f]).filter(f2);
+    expect(q._applyFilters([1,2,3,4,5])).toEqual([2,3,4]);
+  });
+
+  it("aexlib.kintone.Query.map can appy a map function to a query result", function() {
+    var f = function(x) { return x + 1; };
+    q.map(f);
+    expect(q._applyFilters([1,2,3])).toEqual([2,3,4]);
+  });
+
+  it("aexlib.kintone.Query.map can use multiple map functions.", function() {
+    var f1 = function(x) { return x + 1; };
+    var f2 = function(x) { return x + 2; };
+    var f3 = function(x) { return x + 3; };
+    q.map([f1]).map([f2,f3]);
+    expect(q._applyFilters([1,2,3])).toEqual([7,8,9]);
+  });
+
+  it("aexlib.kintone.Query.map can use filter and map functions.", function() {
+    var f1 = function(x) { return x + 1; };
+    var f2 = function(x) { return x % 2 === 0; };
+    var f3 = function(x) { return x + 3; };
+    q.map(f1).filter(f2).map(f3);
+    expect(q._applyFilters([1,2,3,4,5])).toEqual([5,7,9]);
+  });
+
+  it("aexlib.kintone.Query.map and filter can use map and filter functions.", function() {
+    var f1 = function(x) { return x + 1; };
+    var f2 = function(x) { return x % 2 === 0; };
+    var f3 = function(x) { return x > 5; };
+    var f4 = function(x) { return x + 3; };
+    var f5 = function(x) { return x + 4; };
+    q.map(f1).filter([f2,f3]).map([f4,f5]);
+    expect(q._applyFilters([1,2,3,4,5])).toEqual([13]);
+  });
 
   it("aexlib.kintone.Record wrap a record object returned by kintone.", function() {
     expect(new k.Record(a, {}).app).toEqual(a);
@@ -2755,6 +2836,275 @@ describe("aexlib.kintone tests", function() {
     expect(k._requestPath('records', {guestSpaceId:'5'})).toEqual('/k/guest/5/v1/records');
     expect(k._requestPath('records', {preview:true})).toEqual('/k/v1/preview/records');
     expect(k._requestPath('records', {guestSpaceId:'5', preview:'true'})).toEqual('/k/guest/5/v1/preview/records');
+  });
+
+
+  it("aexlib.kintone.Space creates a class to handle kintone Space", function() {
+    var space = new k.Space('foo');
+    expect(space.id).toEqual('foo');
+  });
+
+  it("aexlib.kintone.getSpace creates a new Space instance and return it.", function() {
+    var space = k.Space.getSpace('foo', true);
+    expect(space.id).toEqual('foo');
+    expect(space._isGuest).toEqual(true);
+  });
+
+  it("aexlib.kintone.Space.create creates a new Space in kintone.", function(done) {
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/template/space');
+      expect(request).toEqual('POST');
+      expect(params.id).toEqual(1);
+      expect(params.name).toEqual('foo');
+      return new Promise(function(resolve) { resolve({id: 'bar'}); });
+    });
+
+    k.Space.create({id:1, name:'foo'}).then(function(space) {
+      expect(space.id).toEqual('bar');
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Space.fetchSpace fetch space info and return Promise.", function(done) {
+    var space = new k.Space('foo');
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/space');
+      expect(request).toEqual('GET');
+      expect(params.id).toEqual('foo');
+      return new Promise(function(resolve) { resolve({id: 'foo', name:'bar', isGuest:true}); });
+    });
+
+    space.fetchSpace().then(function(info) {
+      expect(info.id).toEqual('foo');
+      expect(info.name).toEqual('bar');
+      expect(space._isGuest).toEqual(true);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Space.fetchSpace fetch space info for guest and return Promise.", function(done) {
+    var space = new k.Space('foo');
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/space');
+      expect(request).toEqual('GET');
+      expect(params.id).toEqual('foo');
+      return new Promise(function(resolve) { resolve({id: 'foo', name:'bar'}); });
+    });
+
+    space.fetchSpace(true).then(function(info) {
+      expect(info.id).toEqual('foo');
+      expect(info.name).toEqual('bar');
+      expect(space.space).toBeDefined();
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Space.remove remove a space from kintone", function(done) {
+    var space = new k.Space('foo');
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/space');
+      expect(request).toEqual('DELETE');
+      expect(params.id).toEqual('foo');
+      return new Promise(function(resolve) { resolve({}); });
+    });
+
+    space.remove().then(function(info) {
+      expect(info).toEqual({});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Space.remove remove a space from kintone for guest", function(done) {
+    var space = new k.Space('foo');
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/space');
+      expect(request).toEqual('DELETE');
+      expect(params.id).toEqual('foo');
+      return new Promise(function(resolve) { resolve({}); });
+    });
+
+    space.remove(true).then(function(info) {
+      expect(info).toEqual({});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Space.updateBody updates a body text in kintone", function(done) {
+    var space = new k.Space('foo');
+    var body = '<a href="bar">link</a>';
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/space/body');
+      expect(request).toEqual('PUT');
+      expect(params.id).toEqual('foo');
+      expect(params.body).toEqual(body);
+      return new Promise(function(resolve) { resolve({}); });
+    });
+
+    space.updateBody(body).then(function(info) {
+      expect(info).toEqual({});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Space.updateBody updates a body text for a guest in kintone", function(done) {
+    var space = new k.Space('foo', true);
+    var body = '<a href="bar">link</a>';
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/space/body');
+      expect(request).toEqual('PUT');
+      expect(params.id).toEqual('foo');
+      expect(params.body).toEqual(body);
+      return new Promise(function(resolve) { resolve({}); });
+    });
+
+    space.updateBody(body).then(function(info) {
+      expect(info).toEqual({});
+      done();
+    });
+  });
+
+
+  it("aexlib.kintone.Space.updateThread updates thread text in kintone", function(done) {
+    var space = new k.Space('foo');
+    var body = '<a href="bar">link</a>';
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/space/thread');
+      expect(request).toEqual('PUT');
+      expect(params.id).toEqual('foo');
+      expect(params.name).toEqual('bar');
+      expect(params.body).toEqual(body);
+      return new Promise(function(resolve) { resolve({}); });
+    });
+
+    space.updateThread('bar', body).then(function(info) {
+      expect(info).toEqual({});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Space.updateThread updates thread text for a guest space in kintone", function(done) {
+    var space = new k.Space('foo');
+    var body = '<a href="bar">link</a>';
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/space/thread');
+      return new Promise(function(resolve) { resolve({}); });
+    });
+
+    space.updateThread('bar', body, true).then(function(info) {
+      expect(info).toEqual({});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Space.createGuests adds guests in kintone", function(done) {
+    var p = {guests:[{code:'foo@example.com'}, {code:'bar@example.com'}]};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/guests');
+      expect(request).toEqual('POST');
+      expect(params).toEqual(p);
+      return new Promise(function(resolve) { resolve({}); });
+    });
+
+    k.Space.createGuests(p).then(function(resp) {
+      expect(resp).toEqual({});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Space.fetchMembers fetch member info for a space", function(done) {
+    var space = new k.Space('foo');
+    var result = {members:[]};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/space/members');
+      expect(request).toEqual('GET');
+      expect(params.id).toEqual('foo');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    space.fetchMembers().then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Space.fetchMembers fetch member info for a guest space id", function(done) {
+    var space = new k.Space('foo');
+    var result = {members:[]};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/space/members');
+      expect(request).toEqual('GET');
+      expect(params.id).toEqual('foo');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    space.fetchMembers(true).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+
+  it("aexlib.kintone.Space.updateMembers update member info in a space", function(done) {
+    var space = new k.Space('foo');
+    var result = {members:[{entry:{},isAdmin:false}]};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/space/members');
+      expect(request).toEqual('PUT');
+      expect(params.id).toEqual('foo');
+      expect(params.members).toEqual(result.members);
+      return new Promise(function(resolve) { resolve({}); });
+    });
+
+    space.updateMembers(result).then(function(resp) {
+      expect(resp).toEqual({});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Space.updateMembers update member info for a guest space", function(done) {
+    var space = new k.Space('foo');
+    var result = {members:[{entry:{},isAdmin:false}]};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/space/members');
+      expect(params.members).toEqual(result.members);
+      return new Promise(function(resolve) { resolve({}); });
+    });
+
+    space.updateMembers(result, true).then(function(resp) {
+      expect(resp).toEqual({});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Space.updateGuests update member info for a guest space", function(done) {
+    var space = new k.Space('foo');
+    var result = {guests:["foo@example.com", "bar@example.com"]};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/foo/v1/space/guests');
+      expect(request).toEqual('PUT');
+      expect(params.id).toEqual('foo');
+      expect(params.guests).toEqual(result.guests);
+      return new Promise(function(resolve) { resolve({}); });
+    });
+
+    space.updateGuests(result).then(function(resp) {
+      expect(resp).toEqual({});
+      done();
+    });
   });
 });
 

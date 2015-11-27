@@ -963,7 +963,7 @@ var aexlib = aexlib || {};
         };
         var toResultHandler = function(resp, cumulativeResult) {
             // TODO: resp.totalCount can get here and then return it later ?
-            return cumulativeResult.concat(resp.records);
+            return cumulativeResult.concat(self._applyFilters(resp.records));
         };
         var startOffset = k._isDefined(this._offset) ? this._offset : 0;
         var maxRecordNum = k._isDefined(this._limit) ? this._limit : null;
@@ -1082,8 +1082,6 @@ var aexlib = aexlib || {};
     k.Query.prototype.orderDesc = function(fieldCode) {
         return this._addOrder(this._toCode(fieldCode) + ' desc');
     };
-
-// TODO: This should be able to accept Date instance for DATE and DATETIME.
 
     /**
      * Add query operation for '='
@@ -1252,6 +1250,82 @@ var aexlib = aexlib || {};
         this._offset = numOffset;
         return this;
     };
+
+
+    /**
+     * Set filter functions.
+     * Each function is called with kintone's record(json) object such as
+     * {'code':{code:'code', value:'value'}. If a filterfunction return false,
+     * then it is removed from the result of query. Otherwise, the record is returned.
+     *
+     * @method filter
+     * @param filterFuncs {function|Array of functions} Set filter functions
+     * to apply the result of responses for Query.
+     * @return {Query} Retrun Query(this) instance.
+     */
+    k.Query.prototype.filter = function(filterFuncs) {
+        this._addFilterFunctions('filter', filterFuncs);
+        return this;
+    };
+
+    /**
+     * Set map functions.
+     * Each function is called with kintone's record(json) object such as
+     * {'code':{code:'code', value:'value'}. When the map function updates
+     * the record values, then the result of query is also changed.
+     *
+     * @method map
+     * @param mapFuncs {function|Array of functions} Set map functions
+     * to apply the result of responses for Query.
+     * @return {Query} Retrun Query(this) instance.
+     */
+    k.Query.prototype.map = function(mapFuncs) {
+        this._addFilterFunctions('map', mapFuncs);
+        return this;
+    };
+
+
+    // TODO:
+    /**
+     * Enable to return totalCount property.
+     * When this method is set to call records, then
+     * returned value is {records:Array of Records, totalCount:totalCountValue}
+     * instead of Records.
+     * @method totalCount
+     * @return {Query} Return Query(this) instance.
+     */
+    k.Query.prototype.totalCount = function() {
+        this._totalCountFlag = true;
+        return this;
+    };
+
+    k.Query.prototype._addFilterFunctions = function(type, func) {
+        var funcs = Array.isArray(func) ? func : [func];
+        if (k._isUndefined(this._filters)) {
+            this._filters = [];
+        }
+
+        this._filters.push(function(records) {
+            for (var i = 0;i < funcs.length;i++) {
+                if (type === 'filter') {
+                    records = records.filter(funcs[i]);
+                } else { // type === 'map'
+                    records = records.map(funcs[i]);
+                }
+            }
+            return records;
+        });
+    };
+
+    k.Query.prototype._applyFilters = function(records) {
+        if (k._isDefined(this._filters) && this._filters.length > 0) {
+            for (var i = 0;i < this._filters.length;i++) {
+                records = this._filters[i](records);
+            }
+        }
+        return records;
+    };
+
 
     k.Query.prototype._buildQuery = function(opt_startOffset, opt_batchSize) {
         var stmt = this._qParams.join(' ');
@@ -2026,6 +2100,159 @@ var aexlib = aexlib || {};
         this.updated[code].value = this.record[code].value;
 
         return oldValue;
+    };
+
+
+    /**
+     * Create a new JS Object to handle kintone space.
+     *
+     * @class Space
+     * @constructor
+     * @param id {String} a space id.
+     * @param opt_isGuest {boolean} Set a guest space flag.
+     * The default value is false.
+     */
+    k.Space = function(id, opt_isGuest) {
+        this.id = id;
+        this._isGuest = k._isDefined(opt_isGuest) ? opt_isGuest : false;
+    };
+
+    /**
+     * Get a new Space instance.
+     * @method getSpace
+     * @static
+     * @param id {String} Space id.
+     * @param opt_isGuest {boolean} Set a guest space or not.
+     * If a new space instance is for a guest, then set to true.
+     * @return a new Space instance.
+     */
+    k.Space.getSpace = function(id, opt_isGuest) {
+        return new k.Space(id, opt_isGuest);
+    };
+
+    /**
+     * Create a new Space in kintone env.
+     * @method create
+     * @static
+     * @param params {JS Object} See doc.
+     * @return {Promise} Promise instance is returned. And returned value is
+     * aexlib.kintone.Space instance and Space.id has the created new instance.
+     */
+    k.Space.create = function(params) {
+        return k._fetch(k._requestPath('template/space'),
+            'POST', params, this, 'space').then(function(resp) {
+            return new k.Space(resp.id);
+        });
+    };
+
+    /**
+     * Create guest users in kintone env.
+     * @method createGuests
+     * @static
+     * @param guests {guests: ...} See doc for details.
+     * @return {Promise} Promise instance is returned.
+     */
+    k.Space.createGuests = function(guests) {
+        return k._fetch(k._requestPath('guests'), 'POST', guests);
+    };
+
+    /**
+     * Fetch space information and return Promise.
+     * @method fetchSpace
+     * @param opt_isGuest {boolean} Set a guest space id if this value is true.
+     * @return {Promise} Promise.resolve(resp) is returned. And Space.space is also set.
+     * If the response has 'isGuest' property, then it is also set to space._isGuest
+     * which is used for a request path after this method.
+     */
+    k.Space.prototype.fetchSpace = function(opt_isGuest) {
+        var self = this;
+        return k._fetch(k._requestPath('space', this._guestSpaceParams(opt_isGuest)),
+            'GET', {id: this.id}, this, 'space').then(function(resp) {
+            if (k._isDefined(resp.isGuest)) {
+               self._isGuest = resp.isGuest;
+            }
+            return resp;
+        });
+    };
+
+    /**
+     * Update space body text and return Promise.
+     * @method updateBody
+     * @param htmlText {String} Set updated body text.
+     * @param opt_isGuest {boolean} Set a guest space id if this value is true.
+     * @return {Promise} Promise.resove(resp) is returned.
+     */
+    k.Space.prototype.updateBody = function(htmlText, opt_isGuest) {
+        return k._fetch(k._requestPath('space/body', this._guestSpaceParams(opt_isGuest)),
+            'PUT', {id: this.id, body:htmlText});
+    };
+
+    /**
+     * Update thread text and return Promise.
+     * @method updateThread
+     * @param name {String} a thread name
+     * @param htmlText {String} Set updated body text.
+     * @param opt_isGuest {boolean} Set a guest space id if this value is true.
+     * @return {Promise} Promise.resove(resp) is returned.
+     */
+    k.Space.prototype.updateThread = function(name, htmlText, opt_isGuest) {
+        return k._fetch(k._requestPath('space/thread', this._guestSpaceParams(opt_isGuest)),
+            'PUT', {id: this.id, name:name, body:htmlText});
+    };
+
+
+    /**
+     * Fetch members and return it by Promise.resolve(resp).
+     * @method fetchMembers
+     * @param opt_isGuest {boolean} Set a guest space id if this value is true.
+     * @return {Promise} Promise.resolve(resp) is returned. And Space.members is also set.
+     * The returned response is like {members: [ ... ]}
+     */
+    k.Space.prototype.fetchMembers = function(opt_isGuest) {
+        return k._fetch(k._requestPath('space/members', this._guestSpaceParams(opt_isGuest)),
+            'GET', {id: this.id}, this, 'members');
+    };
+
+    /**
+     * Update members and return Promise.
+     * @method updateMembers
+     * @param members {members:[...]} Set members to update members in kintone.
+     * @param opt_isGuest {boolean} Set a guest space id if this value is true.
+     * @return {Promise} Promise.resolve(resp) is returned.
+     */
+    k.Space.prototype.updateMembers = function(members, opt_isGuest) {
+        return k._fetch(k._requestPath('space/members', this._guestSpaceParams(opt_isGuest)),
+            'PUT', {id: this.id, members:members.members});
+    };
+
+    /**
+     * Update guest space's guests. Space.id should be for a guest space id.
+     * @method updateGuests
+     * @param guests {guests:[...]} Set guests to update guests in a guest space.
+     * @return {Promise} Promise.resolve(resp) is returned.
+     */
+    k.Space.prototype.updateGuests = function(guests) {
+        return k._fetch(k._requestPath('space/guests', {guestSpaceId:this.id}),
+            'PUT', {id: this.id, guests:guests.guests});
+    };
+
+    /**
+     * Remove space from kintone.
+     * @method remove
+     * @param opt_isGuest {boolean} Set a guest space id if this value is true.
+     * @return {Promise} Promise.resolve(resp) is returned.
+     */
+    k.Space.prototype.remove = function(opt_isGuest) {
+        return k._fetch(k._requestPath('space', this._guestSpaceParams(opt_isGuest)),
+            'DELETE', {id: this.id});
+    };
+
+    k.Space.prototype._guestSpaceParams = function(opt_isGuest) {
+        return this._checkGuest(opt_isGuest) ? {guestSpaceId:this.id} : undefined;
+    };
+
+    k.Space.prototype._checkGuest = function(opt_isGuest) {
+        return k._isDefined(opt_isGuest) ? opt_isGuest : (k._isDefined(this._isGuest) ? this._isGuest : false);
     };
 
     // For node.js, App, Query, and Record are exported objects.
