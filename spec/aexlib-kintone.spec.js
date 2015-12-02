@@ -26,10 +26,12 @@ describe("aexlib.kintone tests", function() {
   var k = aexlib.kintone;
   var a;
   var q;
+  var b;
 
   beforeEach(function() {
     a = k.App.getApp('1');
     q = a.select();
+    b = k.BulkRequest.newRequest();
   });
 
   afterEach(function() {
@@ -921,6 +923,42 @@ describe("aexlib.kintone tests", function() {
   });
 
 
+  it("aexlib.kintone.App.fetchCustomize", function(done) {
+    var result = {revision:'2', desktop:[]};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/app/customize');
+      expect(request).toEqual('GET');
+      expect(params.app).toEqual('1');
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.fetchCustomize().then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+
+  it("aexlib.kintone.App.updateCustomize", function(done) {
+    var result = {revision:'3'};
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/app/customize');
+      expect(request).toEqual('PUT');
+      expect(params.app).toEqual('1');
+      expect(params.desktop).toEqual([]);
+      expect(params.revision).toBeUndefined();
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    a.updateCustomize({desktop:[]}).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+
   it("aexlib.kintone.Query.first fetch a record and then return Promise.", function(done) {
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
       expect(url).toEqual('/k/v1/records');
@@ -1691,7 +1729,6 @@ describe("aexlib.kintone tests", function() {
   });
 
   it("aexlib.kintone.Record.save creates a new data if it is a new value.", function(done) {
-    var receiver = {};
     var r = a.newRecord();
     r.val('foo', 'bar');
 
@@ -1703,12 +1740,11 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve) { resolve({id: "11", revision:"1"}); });
     });
 
-    r.save(receiver, 'resp').then(function(resp) {
+    r.save().then(function(resp) {
       expect(resp.id).toEqual('11');
       expect(resp.revision).toEqual('1');
       expect(r.recordId()).toEqual(11);
       expect(r.revision()).toEqual(1);
-      expect(receiver.resp).toEqual({id:"11",revision:"1"});
       expect(resp).toEqual({id:"11",revision:"1"});
       done();
     });
@@ -1743,7 +1779,7 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve) { resolve({id: "11", revision:"2"}); });
     });
 
-    r.save(null, null, {guestSpaceId:'foo'}).then(function(resp) {
+    r.save({guestSpaceId:'foo'}).then(function(resp) {
       done();
     });
   });
@@ -1785,7 +1821,7 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve) { resolve({revision:"4"}); });
     });
 
-    r.save(null, null, {validation:false}).then(function(resp) {
+    r.save({validation:false}).then(function(resp) {
       expect(resp.revision).toEqual('4');
       expect(r.recordId()).toEqual(2);
       expect(r.revision()).toEqual(4);
@@ -1803,7 +1839,7 @@ describe("aexlib.kintone tests", function() {
       return new Promise(function(resolve) { resolve({revision:"4"}); });
     });
 
-    r.save(null, null, {guestSpaceId:'foo', validation:false}).then(function(resp) {
+    r.save({guestSpaceId:'foo', validation:false}).then(function(resp) {
       done();
     });
   });
@@ -1811,7 +1847,7 @@ describe("aexlib.kintone tests", function() {
   it("aexlib.kintone.Record.save(null, null, {validation:true}) doesn't update data without revision.", function(done) {
     var r = a.newRecord({'$id':{value:'2'}, 'foo':{value:'foo'}});
     r.val('foo', 'bar');
-    r.save(null, null, {validation:true}).then(function() {}, function(error) {
+    r.save({validation:true}).then(function() {}, function(error) {
       expect(error.message).toBeDefined();
       done();
     });
@@ -3343,6 +3379,133 @@ describe("aexlib.kintone tests", function() {
       expect(resp).toEqual({});
       done();
     });
+  });
+
+
+  it("aexlib.kintone.BulkRequest.newRequest is to create a new instance.", function() {
+    expect(b._requests).toBeDefined();
+  });
+
+  it("aexlib.kintone.BulkRequest._add can add a new request.", function() {
+    b._add('GET', '/k/v1/records', {foo:'bar'});
+    expect(b._requests[0]).toEqual({method:'GET', api:'/k/v1/records', payload:{foo:'bar'}});
+  });
+
+  it("aexlib.kintone.BulkRequest.send is to send a bulk request.", function(done) {
+    var result = {dummy:'foo'};
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/bulkRequest');
+      expect(request).toEqual('POST');
+      expect(params.requests).toEqual([{foo:'bar'}]);
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    b._requests.push({foo:'bar'});
+
+    b.send().then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.BulkRequest can add a request.", function() {
+    var r = a.newRecord();
+    r.val('foo', 'bar');
+    r.save(b);
+    expect(b._requests.length).toEqual(1);
+    expect(b._requests[0]).toEqual({method:'POST', api:'/k/v1/record', payload:{app:'1', record:{'foo':{value:'bar'}}}});
+  });
+
+  it("aexlib.kintone.BulkRequest can add some requests.", function() {
+    var r1 = a.newRecord({'foo':{value:'bar'}});
+    var r2 = a.newRecord({'$id':{value:'2'}, '$revision':{value:'3'}, 'foo':{value:'foo'}});
+    r2.val('foo', 'bar2');
+
+    r1.save(b);
+    r2.save(b, {guestSpaceId:'hoge', preview:true});
+    r2.remove(b);
+
+    expect(b._requests.length).toEqual(3);
+    expect(b._requests[0]).toEqual({method:'POST', api:'/k/v1/record', payload:{app:'1', record:{'foo':{value:'bar'}}}});
+    expect(b._requests[1]).toEqual({method:'PUT', api:'/k/guest/hoge/v1/preview/record',
+        payload:{app:'1', id: 2, revision: 3, record:{'foo':{value:'bar2'}}}});
+    expect(b._requests[2]).toEqual({method:'DELETE', api:'/k/v1/records', payload:{app:'1', ids:[2], revisions:[3]}});
+  });
+
+  it("aexlib.kintone.Record.saveAll can use with a bulk request.", function() {
+    var records = [
+      a.newRecord({'foo':{value:'bar'}}),
+      a.newRecord({'foo':{value:'hoge'}})
+    ];
+
+    k.Record.saveAll(records, b);
+    expect(b._requests[0]).toEqual({method:'POST', api:'/k/v1/records',
+      payload:{app:'1', records:[{foo:{value:'bar'}}, {foo:{value:'hoge'}}]}});
+  });
+
+
+  it("aexlib.kintone.Record.updateAll can use with a bulk request.", function() {
+    var records = [
+      a.newRecord({'foo':{value:'bar'}, '$id':{value:'1'}, '$revision':{value:'3'}}),
+      a.newRecord({'foo':{value:'bar'}, '$id':{value:'2'}, '$revision':{value:'4'}})
+    ];
+    records = records.map(function(record) { record.val('foo', 'piyo'); return record;});
+    var paramRecords = [
+      {id:1,revision:3,record:{foo:{value:'piyo'}}},
+      {id:2,revision:4,record:{foo:{value:'piyo'}}}
+    ];
+    var respRecords = [{id:'1', revision:'5'}, {id:'2',revision:'6'}];
+
+    k.Record.updateAll(records, b, {guestSpaceId:'hoge', preview:true});
+    expect(b._requests[0]).toEqual({method:'PUT', api:'/k/guest/hoge/v1/preview/records',
+      payload:{app:'1', records:paramRecords}});
+  });
+
+  it("aexlib.kintone.Record.removeAll can use with a bulk request.", function() {
+    var records = [
+      a.newRecord({'$id':{value:'2'}, '$revision':{value:'3'}}),
+      a.newRecord({'$id':{value:'5'}, '$revision':{value:'6'}})
+    ];
+
+    k.Record.removeAll(records, b);
+    expect(b._requests[0]).toEqual({method:'DELETE', api:'/k/v1/records',
+      payload:{app:'1', ids:[2,5], revisions:[3,6]}});
+  });
+
+  it("aexlib.kintone.Record.saveAll can use with a bulk request.", function() {
+    var records = [];
+    var result = [];
+    for (var i = 0;i < 101;i++) {
+        var rec = {'foo':{value:('bar' + i)}};
+        result.push(rec);
+        records.push(a.newRecord(rec));
+    }
+
+    k.Record.saveAll(records, b);
+    expect(b._requests.length).toEqual(2);
+    expect(b._requests[1]).toEqual({method:'POST', api:'/k/v1/records',
+      payload:{app:'1', records:[result[100]]}});
+  });
+
+  it("aexlib.kintone.Record.updateStatus can update status for a record.", function() {
+    var result = {dummy:'foo'};
+    var r = a.newRecord({'$id':{value:'2'}});
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/records/status');
+      expect(request).toEqual('PUT');
+      expect(params).toEqual({app:'1', id:2, action:'foo'});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    r.updateStatus({action:'foo'}).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Record.updateStatusAll can update status for records.", function() {
+    expect(1).toBe(2);
   });
 });
 

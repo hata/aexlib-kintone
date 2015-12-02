@@ -205,6 +205,7 @@ var aexlib = aexlib || {};
      */
     k._recursiveUpdate = function(updateParams, records, opt_params, opt_result) {
         var validateRevisions = k.Record._isValidationEnabled(opt_params);
+        var bulk = k._isDefined(opt_params) ? opt_params._bulk : undefined;
         var remains;
         var params;
         var appId;
@@ -234,12 +235,18 @@ var aexlib = aexlib || {};
         }
         params = updateParams.toParamsHandler(appId, records, validateRevisions);
 
-        return k._kintoneFunc(k._KINTONE_API)(updateParams.url, updateParams.request, params).then(function(resp) {
-            var result = updateParams.toResultHandler(records, resp, opt_result);
-            return remains ? k._recursiveUpdate(updateParams, remains, opt_params, result) : result;
-        }, function(errResp) {
-            return k._reject(errResp);
-        });
+        // opt_params may have a bulk instance as _bulk property.
+        if (k.BulkRequest._isBulk(bulk)) {
+            bulk._add(updateParams.request, updateParams.url, params);
+            return remains ? k._recursiveUpdate(updateParams, remains, opt_params, opt_result) : null;
+        } else {
+            return k._kintoneFunc(k._KINTONE_API)(updateParams.url, updateParams.request, params).then(function(resp) {
+                var result = updateParams.toResultHandler(records, resp, opt_result);
+                return remains ? k._recursiveUpdate(updateParams, remains, opt_params, result) : result;
+            }, function(errResp) {
+                return k._reject(errResp);
+            });
+        }
     };
 
 
@@ -917,6 +924,45 @@ var aexlib = aexlib || {};
         return k._fetch(k._requestPath('field/acl', opt_params),
             'PUT', {app:this.appId, rights:acl.rights, revision:revision});
     };
+
+
+    /**
+     * Fetch customize.
+     * @method fetchCustomize
+     * @param opt_params {guestSpaceId:'foo', preview:boolean} Set request path options.
+     * @return {Promise} Promise.resolve(resp) is return.
+     */
+    k.App.prototype.fetchCustomize = function(opt_params) {
+        return k._fetch(k._requestPath('app/customize', opt_params),
+            'GET', {app:this.appId}, this, 'customize');
+    };
+
+
+    /**
+     * Update customize.
+     * @method updateCustomize
+     * @param customize {desktop:...,mobile:...,scope:...,revision:...} Customize
+     * information is set.
+     * @param opt_params {guestSpaceId:'foo', preview:boolean} Set request path options.
+     * @return {Promise} Promise.resolve(resp) is return.
+     */
+    k.App.prototype.updateCustomize = function(customize, opt_params) {
+        var params = {app:this.appId};
+        if (k._isDefined(customize.desktop)) {
+            params.desktop = customize.desktop;
+        }
+        if (k._isDefined(customize.mobile)) {
+            params.mobile = customize.mobile;
+        }
+        if (k._isDefined(customize.scope)) {
+            params.scope = customize.scope;
+        }
+        if (k._isDefined(customize.revision)) {
+            params.revision = customize.revision;
+        }
+        return k._fetch(k._requestPath('app/customize', opt_params), 'PUT', params);
+    };
+
 
     // It maybe required to refactor this method because the current
     // code is to set revision after successful call. However, we may
@@ -1689,8 +1735,6 @@ var aexlib = aexlib || {};
         this.updated = undefined;
     };
 
-// TODO: buik update should also be required.
-
     /**
      * Create or Update records at the same time. If there are more than 100 records,
      * this update may be run several times. In this case, records may be partially
@@ -1705,7 +1749,7 @@ var aexlib = aexlib || {};
      * @param opt_params {guestSpaceId:'foo', validation:true|false}
      * @return {Promise}
      */
-    k.Record.saveAll = function(records, opt_params) {
+    k.Record.saveAll = function(records, opt_params, opt_requestParams) {
        var i;
        var recordId;
        var creatingRecords = [];
@@ -1727,9 +1771,9 @@ var aexlib = aexlib || {};
        }
 
        if (creatingRecords.length > 0) {
-           return k.Record.createAll(creatingRecords, opt_params);
+           return k.Record.createAll(creatingRecords, opt_params, opt_requestParams);
        } else if (updatingRecords.length > 0) {
-           return k.Record.updateAll(updatingRecords, opt_params);
+           return k.Record.updateAll(updatingRecords, opt_params, opt_requestParams);
        } else {
            return k._reject({message:k._NO_UPDATE_FOUND_ERROR});
        }
@@ -1745,7 +1789,10 @@ var aexlib = aexlib || {};
      * @param opt_params {guestSpaceId:'foo', validation:true|false}
      * @return {Promise}
      */
-    k.Record.createAll = function(records, opt_params) {
+    k.Record.createAll = function(records, opt_params, opt_requestParams) {
+        if (k.BulkRequest._isBulk(opt_params)) {
+            opt_params = k.BulkRequest._mergeParams(opt_params, opt_requestParams);
+        }
         return k._recursiveUpdate(k.Record._getCreateParams(opt_params), records, opt_params);
     };
 
@@ -1759,7 +1806,10 @@ var aexlib = aexlib || {};
      * If true is set to validation, then validate revisions.
      * @return {Promise}
      */
-    k.Record.updateAll = function(records, opt_params) {
+    k.Record.updateAll = function(records, opt_params, opt_requestParams) {
+        if (k.BulkRequest._isBulk(opt_params)) {
+            opt_params = k.BulkRequest._mergeParams(opt_params, opt_requestParams);
+        }
         return k._recursiveUpdate(k.Record._getUpdateParams(opt_params), records, opt_params);
     };
 
@@ -1770,12 +1820,27 @@ var aexlib = aexlib || {};
      * @static
      * @param records {Array of Record} All Records should be existing Records.
      * @param opt_params {guestSpaceId:'foo', validation:true|false}
-     * If true is set, then validate revisions.
      * @return {Promise}
      */
-    k.Record.removeAll = function(records, opt_params) {
+    k.Record.removeAll = function(records, opt_params, opt_requestParams) {
+        if (k.BulkRequest._isBulk(opt_params)) {
+            opt_params = k.BulkRequest._mergeParams(opt_params, opt_requestParams);
+        }
         return k._recursiveUpdate(k.Record._getRemoveParams(opt_params), records, opt_params);
     };
+
+
+    /**
+     * Update some record status at the same time.
+     * @method updateStatusAll
+     * @static
+     * @param records {Array of Record} All records should be existing records.
+     * @param opt_params {guestSpaceId:'foo', preview:boolean}
+     */
+    k.Record.updateStatusAll = function(records, opt_params) {
+// TODO: impl.
+    };
+
 
     // opt_params {guestSpaceId:'foo'}
     k.Record._getUpdateParams = function(opt_params) {
@@ -2110,18 +2175,23 @@ var aexlib = aexlib || {};
      * a new record will be created.
      *
      * @method save
-     * @param opt_obj {Object} If this value is set, then result is set to this object's prop.
-     * @param opt_prop {String} Set a property name if result should be set to an object.
-     * @param opt_params {guestSpaceId:'foo', validation:true|false}
+     * @param opt_params {BulkRequest|{guestSpaceId:'foo', validation:true|false}}
+     * Set BulkRequest instance if this method should be post/put in a bulk request.
+     * Otherwise, this parameter can use as a request parameter.
+     * @param opt_requestParams {guestSpaceId:'foo', validation:true|false}
+     * If opt_params is a bulk request, then set this parameter as a request parameter.
+     * Otherwise, this parameter is not used.
      * @return {Promise} Promise.resolve(resp) is returned when the request
      * is succeeded. If error is returned, then Promise.reject(error) is called.
+     * If bulk request is set, then this method doesn't return a value.
      */
-    k.Record.prototype.save = function(opt_obj, opt_prop, opt_params) {
-        var obj = k._isUndefined(opt_obj) ? undefined : opt_obj;
-        var prop = k._isUndefined(opt_prop) ? undefined : opt_prop;
-        var validateRevision = k.Record._isValidationEnabled(opt_params);
+    k.Record.prototype.save = function(opt_params, opt_requestParams) {
+        var bulk = k.BulkRequest._isBulk(opt_params) ? opt_params : undefined;
+        var requestParams = k.BulkRequest._isBulk(opt_params) ? opt_requestParams : opt_params;
+        var validateRevision = k.Record._isValidationEnabled(requestParams);
         var rid = this.recordId();
         var params;
+        var url = k._requestPath('record', requestParams);
         var self = this;
 
 
@@ -2129,19 +2199,29 @@ var aexlib = aexlib || {};
             params = validateRevision ?
                 {app:this.app.appId, id:rid, revision:this.revision(), record:this.updated} :
                 {app:this.app.appId, id:rid, record:this.updated};
-            return k._fetch(k._requestPath('record', opt_params), 'PUT', params, obj, prop).then(function(resp) {
-                self.revision(resp.revision);
-                return resp;
-            });
-         } else if (k._isUndefined(rid)) {
+            if (k._isDefined(bulk)) {
+                bulk._add('PUT', url, params);
+                return null;
+            } else {
+                return k._fetch(url, 'PUT', params).then(function(resp) {
+                    self.revision(resp.revision);
+                    return resp;
+                });
+            }
+        } else if (k._isUndefined(rid)) {
             // NOTE: If there is no recordId, then this.record should have a new data only.
             // (No type or other values in it. Or, it may be better to filter record.)
             params = {app:this.app.appId, record:this.record};
-            return k._fetch(k._requestPath('record', opt_params), 'POST', params, obj, prop).then(function(resp) {
-                self.recordId(resp.id);
-                self.revision(resp.revision);
-                return resp;
-            });
+            if (k._isDefined(bulk)) {
+                bulk._add('POST', url, params);
+                return null;
+            } else {
+                return k._fetch(url, 'POST', params).then(function(resp) {
+                    self.recordId(resp.id);
+                    self.revision(resp.revision);
+                    return resp;
+               });
+            }
         } else {
             return k._reject({message:k._NO_UPDATE_FOUND_ERROR});
         }
@@ -2151,27 +2231,64 @@ var aexlib = aexlib || {};
      * Delete the record of this instance.
      *
      * @method remove
-     * @param opt_params {guestSpaceId:'foo', validation:true|false} Set validation to true
-     * if revision should be validated.
+     * @param opt_params {BulkRequest|{guestSpaceId:'foo', validation:true|false}}
+     * Set validation to true if revision should be validated.
+     * Set BulkRequest instance if this method should be post/put in a bulk request.
+     * Otherwise, this parameter can use as a request parameter.
+     * @param opt_requestParams {guestSpaceId:'foo', validation:true|false}
+     * If opt_params is a bulk request, then set this parameter as a request parameter.
+     * Otherwise, this parameter is not used.
      * @return {Promise} Return Promise.resolve(resp) if it succeed to delete a request.
      * If it failed, then Promise.reject(error) is returned.
+     * If bulk request is set, then this method doesn't return a value.
      */
-    k.Record.prototype.remove = function(opt_params) {
+    k.Record.prototype.remove = function(opt_params, opt_requestParams) {
+        var bulk = k.BulkRequest._isBulk(opt_params) ? opt_params : undefined;
+        var requestParams = k.BulkRequest._isBulk(opt_params) ? opt_requestParams : opt_params;
+        var validateRevision = k.Record._isValidationEnabled(requestParams);
         var rid = this.recordId();
         var params;
         var self = this;
-        var validateRevision = k.Record._isValidationEnabled(opt_params);
+        var url = k._requestPath('records', requestParams);
 
         if (k._isDefined(rid)) {
             params = validateRevision ?
                 {app:this.app.appId, ids:[rid], revisions:[this.revision()]} :
                 {app:this.app.appId, ids:[rid]};
-            return k._fetch(k._requestPath('records', opt_params), 'DELETE', params).then(function(resp) {
-                return resp;
-            });
+            if (k._isDefined(bulk)) {
+                bulk._add('DELETE', url, params);
+            } else {
+                return k._fetch(url, 'DELETE', params).then(function(resp) {
+                    return resp;
+                });
+            }
         } else {
             return k._reject({message:k._NO_RECORD_ID_FOUND_ERROR});
         }
+    };
+
+    /**
+     * Update status.
+     * @method updateStatus
+     * @param newStatus {action:...,revision:..., assignee:...}
+     * Set a new status for this record.
+     * Set action which is required. Optional value is revision and assignee.
+     * @param opt_params {guestSpaceId:'foo',preview:boolean} Set a request
+     * path parameters.
+     * @return {Promise} Promise.resolve(resp) is returned.
+     * resp contains the result of this request.
+     */
+    k.Record.prototype.updateStatus = function(newStatus, opt_params) {
+        var url = k._requestPath('records', opt_params);
+        var rid = this.recordId();
+        var params = {app:this.app.appId, id:rid, action:newStatus.action};
+        if (k._isDefined(newStatus.revision)) {
+            params.revision = newStatus.revision;
+        }
+        if (k._isDefined(newStatus.assignee)) {
+            params.assignee = newStatus.assignee;
+        }
+        return k._fetch(url, 'PUT', params);
     };
 
     k.Record.prototype._getValue = function(code) {
@@ -2348,6 +2465,58 @@ var aexlib = aexlib || {};
     k.Space.prototype._checkGuest = function(opt_isGuest) {
         return k._isDefined(opt_isGuest) ? opt_isGuest : (k._isDefined(this._isGuest) ? this._isGuest : false);
     };
+
+
+    /**
+     * Helper class to send buld request.
+     *
+     * @class BulkRequest
+     *
+     */
+    k.BulkRequest = function() {
+        this._requests = [];
+    };
+
+    /**
+     * Create a new BulkRequest instance.
+     * @method newRequest
+     * @static
+     * @return {BulkRequest} a new instance.
+     */
+    k.BulkRequest.newRequest = function() {
+        return new k.BulkRequest();
+    };
+
+    k.BulkRequest._isBulk = function(bulkRequest) {
+        return k._isDefined(bulkRequest) && (bulkRequest instanceof k.BulkRequest);
+    };
+
+    k.BulkRequest._mergeParams = function(bulk, opt_requestParams) {
+        if (k._isDefined(opt_requestParams)) {
+            opt_requestParams._bulk = bulk;
+            return opt_requestParams;
+        } else {
+            return {_bulk:bulk};
+        }
+    };
+
+    k.BulkRequest.prototype._add = function(method, requestPath, params) {
+        this._requests.push({method:method, api:requestPath, payload:params});
+    };
+
+    /**
+     * TODO: This should be able to send more than 20 requests.
+     * Send a bulk request.
+     * @method send
+     * @param opt_params {guestSpaceId:'foo'} Set guestSpaceId if this request is for
+     * a guest space request.
+     * @return {Promise}
+     */
+    k.BulkRequest.prototype.send = function(opt_params) {
+        return k._fetch(k._requestPath('bulkRequest', opt_params),
+            'POST', {requests:this._requests});
+    };
+
 
     // For node.js, App, Query, and Record are exported objects.
     try {
