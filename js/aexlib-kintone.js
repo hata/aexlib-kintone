@@ -1837,8 +1837,8 @@ var aexlib = aexlib || {};
      * @param records {Array of Record} All records should be existing records.
      * @param opt_params {guestSpaceId:'foo', preview:boolean}
      */
-    k.Record.updateStatusAll = function(records, opt_params) {
-// TODO: impl.
+    k.Record.updateStatusAll = function(records, newStatus, opt_params) {
+        return k._recursiveUpdate(k.Record._getUpdateStatusParams(newStatus, opt_params), records, opt_params);
     };
 
 
@@ -1934,6 +1934,52 @@ var aexlib = aexlib || {};
         return {
             url: k._requestPath('records', opt_params),
             request:'DELETE',
+            toParamsHandler:toParamsHandler,
+            toResultHandler:toResultHandler
+        };
+    };
+
+    k.Record._getUpdateStatusParams = function(newStatus, opt_params) {
+        var toParamsHandler = function(appId, records, validateRevisions) {
+            var reqRecords = [];
+            for (var i = 0;i < records.length;i++) {
+                var revision = validateRevisions ? records[i].revision() : undefined;
+                var rid = records[i].recordId();
+                var param = {action:newStatus.action};
+                if (k._isUndefined(rid)) {
+                    throw new Error('Record have to have id.');
+                }
+                param.id = rid;
+                if (k._isDefined(newStatus.assignee)) {
+                    param.assignee = newStatus.assignee;
+                }
+                if (k._isDefined(revision)) {
+                    param.revision = revision;
+                }
+                reqRecords.push(param);
+            }
+
+            return {app:appId, records:reqRecords};
+        };
+
+        var toResultHandler = function(records, resp, opt_result) {
+            for (var i = 0;i < resp.records.length;i++) {
+                if (records[i].recordId() == resp.records[i].id) { // This line compares number and string.
+                    records[i].revision(resp.records[i].revision);
+                } else {
+                    // NOTE: Ignore updating revision if record id is not matched.
+                    // Normally, it should be matched.
+                }
+            }
+
+            return k._isDefined(opt_result) ?
+                {records:opt_result.records.concat(resp.records)} :
+                {records:resp.records};
+        };
+
+        return {
+            url: k._requestPath('records/status', opt_params),
+            request:'PUT',
             toParamsHandler:toParamsHandler,
             toResultHandler:toResultHandler
         };
@@ -2279,15 +2325,18 @@ var aexlib = aexlib || {};
      * resp contains the result of this request.
      */
     k.Record.prototype.updateStatus = function(newStatus, opt_params) {
-        var url = k._requestPath('records', opt_params);
+        var url = k._requestPath('record/status', opt_params);
         var rid = this.recordId();
+        var rev = k._isDefined(newStatus.revision) ? newStatus.revision : this.revision();
         var params = {app:this.app.appId, id:rid, action:newStatus.action};
-        if (k._isDefined(newStatus.revision)) {
-            params.revision = newStatus.revision;
+
+        if (k._isDefined(rev)) {
+            params.revision = rev;
         }
         if (k._isDefined(newStatus.assignee)) {
             params.assignee = newStatus.assignee;
         }
+
         return k._fetch(url, 'PUT', params);
     };
 

@@ -3487,12 +3487,12 @@ describe("aexlib.kintone tests", function() {
       payload:{app:'1', records:[result[100]]}});
   });
 
-  it("aexlib.kintone.Record.updateStatus can update status for a record.", function() {
+  it("aexlib.kintone.Record.updateStatus can update status for a record.", function(done) {
     var result = {dummy:'foo'};
     var r = a.newRecord({'$id':{value:'2'}});
 
     spyOn(kintone, 'api').and.callFake(function(url, request, params) {
-      expect(url).toEqual('/k/v1/records/status');
+      expect(url).toEqual('/k/v1/record/status');
       expect(request).toEqual('PUT');
       expect(params).toEqual({app:'1', id:2, action:'foo'});
       return new Promise(function(resolve) { resolve(result); });
@@ -3504,8 +3504,127 @@ describe("aexlib.kintone tests", function() {
     });
   });
 
-  it("aexlib.kintone.Record.updateStatusAll can update status for records.", function() {
-    expect(1).toBe(2);
+  it("aexlib.kintone.Record.updateStatus can update status with revision and assignee.", function(done) {
+    var result = {dummy:'foo'};
+    var r = a.newRecord({'$id':{value:'2'}, '$revision':{value:5}});
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/record/status');
+      expect(request).toEqual('PUT');
+      expect(params).toEqual({app:'1', id:2, action:'foo', revision:5, assignee:'bar'});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    r.updateStatus({action:'foo', assignee:'bar'}).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Record.updateStatus can update status without validting a revision.", function(done) {
+    var result = {dummy:'foo'};
+    var r = a.newRecord({'$id':{value:'2'}, '$revision':{value:5}});
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/record/status');
+      expect(request).toEqual('PUT');
+      expect(params).toEqual({app:'1', id:2, action:'foo', revision:-1, assignee:'bar'});
+      return new Promise(function(resolve) { resolve(result); });
+    });
+
+    r.updateStatus({action:'foo', revision:-1, assignee:'bar'}).then(function(resp) {
+      expect(resp).toEqual(result);
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Record.updateStatusAll can update status for records.", function(done) {
+    var records = [
+      a.newRecord({'foo':{value:'bar'},  '$id':{value:1}}),
+      a.newRecord({'foo':{value:'hoge'}, '$id':{value:2}})
+    ];
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/records/status');
+      expect(request).toEqual('PUT');
+      expect(params.app).toEqual('1');
+      expect(params.records).toEqual([
+        {id:1, action:'act'},
+        {id:2, action:'act'}
+      ]);
+      return new Promise(function(resolve) { resolve({records:[{id:'1'},{id:'2'}]}); });
+    });
+
+    k.Record.updateStatusAll(records, {action:'act'}).then(function(resp) {
+      expect(resp).toEqual({records:[{id:'1'},{id:'2'}]});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Record.updateStatusAll can update status with validation.", function(done) {
+    var records = [
+      a.newRecord({'foo':{value:'bar'},  '$id':{value:1}, '$revision':{value:'2'}}),
+      a.newRecord({'foo':{value:'hoge'}, '$id':{value:2}, '$revision':{value:'3'}})
+    ];
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/guest/hoge/v1/records/status');
+      expect(request).toEqual('PUT');
+      expect(params.app).toEqual('1');
+      expect(params.records).toEqual([
+        {id:1, action:'act', assignee:'piyo', revision:2},
+        {id:2, action:'act', assignee:'piyo', revision:3}
+      ]);
+      return new Promise(function(resolve) { resolve({records:[{id:'1'},{id:'2'}]}); });
+    });
+
+    k.Record.updateStatusAll(records, {action:'act', assignee:'piyo'}, {guestSpaceId:'hoge', validation:true}).then(function(resp) {
+      expect(resp).toEqual({records:[{id:'1'},{id:'2'}]});
+      done();
+    });
+  });
+
+
+  it("aexlib.kintone.Record.updateStatusAll can update many record status.", function(done) {
+    var records = [];
+    for (var i = 0;i < 101;i++) {
+      records.push(a.newRecord({'foo':{value:'bar'},  '$id':{value:i}}));
+    }
+
+    spyOn(kintone, 'api').and.callFake(function(url, request, params) {
+      expect(url).toEqual('/k/v1/records/status');
+      expect(request).toEqual('PUT');
+      expect(params.app).toEqual('1');
+      if (params.records.length === 100) {
+          for (var k = 0;k < 100;k++) {
+              expect(params.records[k]).toEqual({id:k, action:'act', assignee:'piyo'});
+          }
+          return new Promise(function(resolve) { resolve({records:[{id:'1'},{id:'2'}]}); });
+      } else {
+          expect(params.records.length).toEqual(1);
+          expect(params.records[0]).toEqual({id:100, action:'act', assignee:'piyo'});
+          return new Promise(function(resolve) { resolve({records:[{id:'100'}]}); });
+      }
+    });
+
+    k.Record.updateStatusAll(records, {action:'act', assignee:'piyo'}).then(function(resp) {
+      expect(resp).toEqual({records:[{id:'1'},{id:'2'},{id:'100'}]});
+      done();
+    });
+  });
+
+  it("aexlib.kintone.Record.updateStatusAll can update status with validation.", function() {
+    var records = [
+      a.newRecord({'foo':{value:'bar'},  '$id':{value:1}, '$revision':{value:'2'}}),
+      a.newRecord({'foo':{value:'hoge'}})
+    ];
+
+    try {
+      k.Record.updateStatusAll(records, {action:'act', assignee:'piyo'}, {validation:false});
+      expect('this should not be called').toBe('');
+    } catch (e) {
+      // ok.
+    }
   });
 });
 
